@@ -25,7 +25,6 @@ public partial class User : IDynamicallySettable, IDynamicallyUpdatable<User>
     public void PropertySetLooping(string[] fields)
     {
         PropertyInfo[] properties = this.GetType().GetProperties();
-        long int64;
 
         for (var i = 0; i < properties.Length; i++)
         {
@@ -35,7 +34,7 @@ public partial class User : IDynamicallySettable, IDynamicallyUpdatable<User>
             switch (i)
             {
                 case 0:
-                    Int64.TryParse(fields[i], out int64);
+                    Int64.TryParse(fields[i], out long int64);
                     properties[i].SetValue(this, int64);
                     break;
                 default:

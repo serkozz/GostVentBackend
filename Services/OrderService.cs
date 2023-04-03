@@ -48,7 +48,7 @@ public class OrderService : IDatabaseModelService<Order>
             Client = orderClient,
             Name = orderNameSplitted[1],
             ProductType = productType,
-            CreationDate = DateTime.UtcNow,
+            CreationDate = DateOnly.FromDateTime(DateTime.UtcNow),
             LeadDays = 3,
             Price = 0,
             Status = OrderStatus.Created
@@ -60,6 +60,8 @@ public class OrderService : IDatabaseModelService<Order>
         return order;
     }
 
+    public List<Order> GetAllOrders() => _db.Orders.ToList();
+
     public List<Order> GetOrdersByEmail(string email)
     {
         List<Order> ordersList = _db.Orders.Where(
@@ -69,23 +71,31 @@ public class OrderService : IDatabaseModelService<Order>
         return ordersList;
     }
 
-    public Order? Add(Order obj)
+    public Order? Add(Order order)
     {
-        throw new NotImplementedException();
+        var res = _db.Orders.Add(order);
+        return order;
     }
 
-    public Order? Delete(Order obj)
+    public Order? Delete(Order order)
     {
-        throw new NotImplementedException();
+        /// Валидность введенных данных проверять не нужно, так как удаление производится по айди
+        Order? dbOrder = _db.Orders.FirstOrDefault<Order>(dbOrder => dbOrder.Id == order.Id);
+        if (dbOrder is null)
+            return null;
+        var res = _db.Orders.Remove(dbOrder);
+        _db.SaveChanges();
+        return dbOrder;
     }
 
-    public Order? Update(Order obj)
+    public Order? Update(Order order)
     {
-        throw new NotImplementedException();
-    }
-
-    public bool ValidateUnique(Order obj)
-    {
-        throw new NotImplementedException();
+        /// Валидацию переданного пользовтеля сюда
+        Order? dbOrder = _db.Orders.FirstOrDefault<Order>(dbOrder => dbOrder.Id == order.Id);
+        if (dbOrder is null)
+            return null;
+        dbOrder.UpdateSelfDynamically<Order>(order);
+        _db.SaveChanges();
+        return dbOrder;
     }
 }

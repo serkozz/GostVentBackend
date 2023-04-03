@@ -99,19 +99,7 @@ public class UserService : IDatabaseModelService<User>
     private bool CheckUsernameExist(string username) => _db.Users.Any(user => user.Username == username);
     private bool CheckEmailExist(string email) => _db.Users.Any(user => user.Email == email);
     private User? GetUser(string email) => _db.Users.FirstOrDefault(user => user.Email == email);
-
-    public bool ValidateUnique(User user)
-    {
-        if (CheckEmailExist(user.Email))
-            return false;
-        if (CheckUsernameExist(user.Username))
-            return false;
-        var passwordStrengthResult = Utility.CheckPasswordStrength(user.Password);
-        if (!string.IsNullOrEmpty(passwordStrengthResult))
-            return false;
-
-        return true;
-    }
+    
     public User? Add(User user)
     {
         /// Добавление нового пользователя по сути это регистрация, валидность введенных данных проверяется в методе регистрации
@@ -123,9 +111,7 @@ public class UserService : IDatabaseModelService<User>
 
     public User? Update(User user)
     {
-        /// Если обновленные данные не валидны, то обновление не производится
-        if (!ValidateUnique(user))
-            return null;
+        /// Валидацию переданного пользовтеля сюда
         User? dbUser = _db.Users.FirstOrDefault<User>(dbUser => dbUser.Id == user.Id);
         if (dbUser is null)
             return null;

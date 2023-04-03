@@ -20,6 +20,14 @@ public class OrderController : ControllerBase
     }
 
     [HttpGet()]
+    [Route("/order")]
+    [Authorize(Roles="Admin")]
+    public IResult GetOrders()
+    {
+        return Results.Ok(_orderService.GetAllOrders());
+    }
+
+    [HttpGet()]
     [Route("/order/{email?}")]
     [Authorize()]
     public IResult GetOrdersByEmail([FromQuery()] string email)

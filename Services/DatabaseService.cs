@@ -10,10 +10,12 @@ public class DatabaseService
 {
     private readonly SQLiteContext _db;
     private readonly UserService _userService;
-    public DatabaseService(SQLiteContext db, UserService userService)
+    private readonly OrderService _orderService;
+    public DatabaseService(SQLiteContext db, UserService userService, OrderService orderService)
     {
         _db = db;
         _userService = userService;
+        _orderService = orderService;
     }
 
     public OneOf<string[], ErrorInfo> GetTables()
@@ -28,15 +30,6 @@ public class DatabaseService
         return new ErrorInfo(System.Net.HttpStatusCode.NotFound, $"Can't get tables");
     }
 
-    public OneOf<Test[], ErrorInfo> GetTestsTable()
-    {
-        var tests = _db.Tests.ToArray();
-        if (tests.Length != 0)
-            return tests;
-
-        return new ErrorInfo(System.Net.HttpStatusCode.NotFound, $"Can't get tests");
-    }
-
     public OneOf<object, ErrorInfo> PerformAction(DatabaseAction action, string table, string[] data)
     {
         
@@ -44,7 +37,7 @@ public class DatabaseService
         {
             case "User":
                 if (data.Length != typeof(User).GetProperties().Length)
-                    return new ErrorInfo(System.Net.HttpStatusCode.BadRequest, $"Unable to update table: Data has {data.Length} items but {table} table has {typeof(User).GetProperties().Length}");
+                    return new ErrorInfo(System.Net.HttpStatusCode.BadRequest, $"Невозможно обновить таблицу: данные имеют длину {data.Length} полей а {table} таблица имеет {typeof(User).GetProperties().Length}");
                 var user = new User(data);
                 switch (action)
                 {
@@ -67,10 +60,31 @@ public class DatabaseService
                         return user;
                 }
                 break;
-            case "Test":
-                if (data.Length != typeof(Test).GetProperties().Length)
-                    return new ErrorInfo(System.Net.HttpStatusCode.BadRequest, $"Unable to perform database action: Data has {data.Length} items but {table} table has {typeof(Test).GetProperties().Length}");
-                return new Test(data);
+            case "Order":
+                if (data.Length != typeof(Order).GetProperties().Length)
+                    return new ErrorInfo(System.Net.HttpStatusCode.BadRequest, $"Невозможно обновить таблицу: данные имеют длину {data.Length} полей а {table} таблица имеет {typeof(Order).GetProperties().Length}");
+                var order = new Order(data);
+                switch (action)
+                {
+                    case DatabaseAction.Post:
+                        order = _orderService.Add(order);
+                        if (order is null)
+                            return new ErrorInfo(System.Net.HttpStatusCode.NotFound, "Невозможно добавить данные, добавляемая сущность имеет неверный формат данных");
+                        return order;
+
+                    case DatabaseAction.Delete:
+                        order = _orderService.Delete(order);
+                        if (order is null)
+                            return new ErrorInfo(System.Net.HttpStatusCode.NotFound, "Невозможно удалить данные, заказ не существует");
+                        return order;
+
+                    case DatabaseAction.Update:
+                        order = _orderService.Update(order);
+                        if (order is null)
+                            return new ErrorInfo(System.Net.HttpStatusCode.NotFound, "Невозможно обновить данные, заказ не существует");
+                        return order;
+                }
+                break;
         }
         return new ErrorInfo(System.Net.HttpStatusCode.NotFound, "Unable to perform database action");
     }

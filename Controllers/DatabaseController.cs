@@ -21,18 +21,6 @@ public class DatabaseController : ControllerBase
     }
 
     [HttpGet()]
-    [Route("/database/tables/tests")]
-    [Authorize(Roles = "Admin")]
-    public IResult GetTestsTable()
-    {
-        var result = _databaseService.GetTestsTable().Match(
-            tests => Results.Ok(tests),
-            error => Results.NotFound(error)
-        );
-        return result;
-    }
-
-    [HttpGet()]
     [Route("/database/tables")]
     [Authorize(Roles = "Admin")]
     public IResult GetTables()

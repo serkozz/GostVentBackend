@@ -1,0 +1,45 @@
+BEGIN TRANSACTION;
+DROP TABLE IF EXISTS "__EFMigrationsHistory";
+CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
+	"MigrationId"	TEXT NOT NULL,
+	"ProductVersion"	TEXT NOT NULL,
+	CONSTRAINT "PK___EFMigrationsHistory" PRIMARY KEY("MigrationId")
+);
+DROP TABLE IF EXISTS "Users";
+CREATE TABLE IF NOT EXISTS "Users" (
+	"Id"	INTEGER NOT NULL,
+	"Username"	TEXT NOT NULL,
+	"Email"	TEXT NOT NULL,
+	"Password"	TEXT NOT NULL,
+	"Token"	TEXT,
+	"Role"	TEXT,
+	CONSTRAINT "PK_Users" PRIMARY KEY("Id" AUTOINCREMENT)
+);
+DROP TABLE IF EXISTS "Orders";
+CREATE TABLE IF NOT EXISTS "Orders" (
+	"Id"	INTEGER NOT NULL,
+	"Name"	TEXT NOT NULL,
+	"ProductType"	INTEGER NOT NULL,
+	"CreationDate"	TEXT NOT NULL,
+	"LeadDays"	INTEGER NOT NULL,
+	"Status"	INTEGER NOT NULL,
+	"Price"	INTEGER NOT NULL,
+	"ClientId"	INTEGER,
+	CONSTRAINT "PK_Orders" PRIMARY KEY("Id" AUTOINCREMENT),
+	CONSTRAINT "FK_Orders_Users_ClientId" FOREIGN KEY("ClientId") REFERENCES "Users"("Id")
+);
+DROP TABLE IF EXISTS "Tests";
+CREATE TABLE IF NOT EXISTS "Tests" (
+	"Id"	INTEGER NOT NULL,
+	"Field1"	TEXT NOT NULL,
+	"Field2"	INTEGER,
+	CONSTRAINT "PK_Tests" PRIMARY KEY("Id" AUTOINCREMENT)
+);
+INSERT INTO "__EFMigrationsHistory" VALUES ('20230402185801_Initial','7.0.4');
+INSERT INTO "__EFMigrationsHistory" VALUES ('20230402193420_lastWorkingPostgres','7.0.4');
+INSERT INTO "Users" VALUES (1,'serkozz','serezha-kozlov.2002@mail.ru','password@123',NULL,'Admin');
+DROP INDEX IF EXISTS "IX_Orders_ClientId";
+CREATE INDEX IF NOT EXISTS "IX_Orders_ClientId" ON "Orders" (
+	"ClientId"
+);
+COMMIT;

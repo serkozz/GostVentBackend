@@ -74,6 +74,7 @@ public class OrderService : IDatabaseModelService<Order>
     public Order? Add(Order order)
     {
         var res = _db.Orders.Add(order);
+        _db.SaveChanges();
         return order;
     }
 
@@ -94,7 +95,7 @@ public class OrderService : IDatabaseModelService<Order>
         Order? dbOrder = _db.Orders.FirstOrDefault<Order>(dbOrder => dbOrder.Id == order.Id);
         if (dbOrder is null)
             return null;
-        dbOrder.UpdateSelfDynamically<Order>(order);
+        dbOrder.UpdateSelfDynamically(order);
         _db.SaveChanges();
         return dbOrder;
     }

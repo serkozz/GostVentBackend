@@ -44,7 +44,7 @@ public partial class User : IDynamicallySettable, IDynamicallyUpdatable<User>
         }
     }
 
-    public void UpdateSelfDynamically<User>(User other)
+    public void UpdateSelfDynamically(User other)
     {
         PropertyInfo[] props = this.GetType().GetProperties();
 

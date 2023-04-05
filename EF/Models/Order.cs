@@ -75,7 +75,7 @@ public partial class Order : IDynamicallySettable, IDynamicallyUpdatable<Order>
         }
     }
 
-    public void UpdateSelfDynamically<Order>(Order other)
+    public void UpdateSelfDynamically(Order other)
     {
         PropertyInfo[] props = this.GetType().GetProperties();
 

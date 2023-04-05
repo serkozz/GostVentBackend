@@ -115,7 +115,7 @@ public class UserService : IDatabaseModelService<User>
         User? dbUser = _db.Users.FirstOrDefault<User>(dbUser => dbUser.Id == user.Id);
         if (dbUser is null)
             return null;
-        dbUser.UpdateSelfDynamically<User>(user);
+        dbUser.UpdateSelfDynamically(user);
         _db.SaveChanges();
         return dbUser;
     }

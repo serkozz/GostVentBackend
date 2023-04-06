@@ -8,6 +8,8 @@ using Microsoft.IdentityModel.Tokens;
 using OneOf;
 using Types.Interfaces;
 using Utility = Types.Classes.Utility;
+using Codes = System.Net.HttpStatusCode;
+using Microsoft.EntityFrameworkCore;
 
 namespace Services;
 public class UserService : IDatabaseModelService<User>
@@ -49,9 +51,9 @@ public class UserService : IDatabaseModelService<User>
             return new ErrorInfo(System.Net.HttpStatusCode.NotFound, $"Cлабый пароль:\n{passwordStrengthResult}");
         user.Password = PasswordUtility.HashPassword(user.Password);
         user.Role = "User";
-        _db.Users.Add(user);
+        var entry = _db.Users.Add(user);
         _db.SaveChanges();
-        return user;
+        return entry.Entity;
     }
 
     public OneOf<string, ErrorInfo> GetUserRole(string username)
@@ -99,35 +101,83 @@ public class UserService : IDatabaseModelService<User>
     private bool CheckUsernameExist(string username) => _db.Users.Any(user => user.Username == username);
     private bool CheckEmailExist(string email) => _db.Users.Any(user => user.Email == email);
     private User? GetUser(string email) => _db.Users.FirstOrDefault(user => user.Email == email);
-    
-    public User? Add(User user)
+
+    public OneOf<User, ErrorInfo> Add(User user)
     {
         /// Добавление нового пользователя по сути это регистрация, валидность введенных данных проверяется в методе регистрации
-        return RegisterUser(user).Match(
+        try
+        {
+            var registerResult = RegisterUser(user).Match(
             user => user,
             error => null
-        );
+            );
+
+            if (registerResult is null)
+                throw new Exception("Возникло исключение при добавлении пользователя! Данные не подходят под сигнатуру");
+            return registerResult;
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"DbUpdateConcurrencyException: {ex.InnerException?.Message}");
+        }
+        catch (DbUpdateException ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"DbUpdateException: {ex.InnerException?.Message}");
+        }
+        catch (Exception ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"System.Exception: {ex.Message}");
+        }
     }
 
-    public User? Update(User user)
+    public OneOf<User, ErrorInfo> Update(User user)
     {
-        /// Валидацию переданного пользовтеля сюда
-        User? dbUser = _db.Users.FirstOrDefault<User>(dbUser => dbUser.Id == user.Id);
-        if (dbUser is null)
-            return null;
-        dbUser.UpdateSelfDynamically(user);
-        _db.SaveChanges();
-        return dbUser;
+        try
+        {
+            User? dbUser = _db.Users.FirstOrDefault<User>(dbUser => dbUser.Id == user.Id);
+            if (dbUser is null)
+                return new ErrorInfo(Codes.NotFound, "Пользователь не найден!");
+            dbUser.UpdateSelfDynamically(user);
+            _db.SaveChanges();
+            return dbUser;
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"DbUpdateConcurrencyException: {ex.InnerException?.Message}");
+        }
+        catch (DbUpdateException ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"DbUpdateException: {ex.InnerException?.Message}");
+        }
+        catch (Exception ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"System.Exception: {ex.Message}");
+        }
     }
 
-    public User? Delete(User user)
+    public OneOf<User, ErrorInfo> Delete(User user)
     {
-        /// Валидность введенных данных проверять не нужно, так как удаление производится по айди
-        User? dbUser = _db.Users.FirstOrDefault<User>(dbUser => dbUser.Id == user.Id);
-        if (dbUser is null)
-            return null;
-        _db.Users.Remove(dbUser);
-        _db.SaveChanges();
-        return dbUser;
+        try
+        {
+            /// Валидность введенных данных проверять не нужно, так как удаление производится по айди
+            User? dbUser = _db.Users.FirstOrDefault<User>(dbUser => dbUser.Id == user.Id);
+            if (dbUser is null)
+                return new ErrorInfo(Codes.NotFound, "Пользователь не найден!");
+            _db.Users.Remove(dbUser);
+            _db.SaveChanges();
+            return dbUser;
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"DbUpdateConcurrencyException: {ex.InnerException?.Message}");
+        }
+        catch (DbUpdateException ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"DbUpdateException: {ex.InnerException?.Message}");
+        }
+        catch (Exception ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"System.Exception: {ex.Message}");
+        }
     }
 }

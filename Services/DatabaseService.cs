@@ -2,8 +2,9 @@ using EF.Models;
 using EF.Contexts;
 using OneOf;
 using Types.Classes;
-using Services;
 using Types.Enums;
+using Types.Interfaces;
+using Codes = System.Net.HttpStatusCode;
 
 namespace Services;
 public class DatabaseService
@@ -27,65 +28,72 @@ public class DatabaseService
         if (tableNames.Count != 0)
             return tableNames.ToArray();
 
-        return new ErrorInfo(System.Net.HttpStatusCode.NotFound, $"Can't get tables");
+        return new ErrorInfo(Codes.NotFound, $"Невозможно получить таблицы");
     }
 
-    public OneOf<object, ErrorInfo> PerformAction(DatabaseAction action, string table, string[] data)
+    public OneOf<IDynamicallySettable, ErrorInfo> PerformAction(DatabaseAction action, string table, string[] data)
     {
-        
         switch (table)
         {
             case "User":
                 if (data.Length != typeof(User).GetProperties().Length)
-                    return new ErrorInfo(System.Net.HttpStatusCode.BadRequest, $"Невозможно обновить таблицу: данные имеют длину {data.Length} полей а {table} таблица имеет {typeof(User).GetProperties().Length}");
-                var user = new User(data);
+                    return new ErrorInfo(Codes.BadRequest, $"Невозможно обновить таблицу: данные имеют длину {data.Length} полей а {table} таблица имеет {typeof(User).GetProperties().Length}");
+                User user = new User(data);
+
+                if (user.Id < 0)
+                    return new ErrorInfo(Codes.BadRequest, "Поля объекта содержат неверные данные, проверьте правильность введенных данных");
+
                 switch (action)
                 {
                     case DatabaseAction.Post:
-                        user = _userService.Add(user);
-                        if (user is null)
-                            return new ErrorInfo(System.Net.HttpStatusCode.NotFound, "Невозможно добавить данные, добавляемая сущность имеет неверный формат данных");
-                        return user;
+                        return _userService.Add(user).Match<OneOf<IDynamicallySettable, ErrorInfo>>(
+                            user => user,
+                            error => error
+                        );
 
                     case DatabaseAction.Delete:
-                        user = _userService.Delete(user);
-                        if (user is null)
-                            return new ErrorInfo(System.Net.HttpStatusCode.NotFound, "Невозможно удалить данные, пользователь не существует");
-                        return user;
+                        return _userService.Delete(user).Match<OneOf<IDynamicallySettable, ErrorInfo>>(
+                            user => user,
+                            error => error
+                        );
 
                     case DatabaseAction.Update:
-                        user = _userService.Update(user);
-                        if (user is null)
-                            return new ErrorInfo(System.Net.HttpStatusCode.NotFound, "Невозможно обновить данные, пользователь не существует");
-                        return user;
+                        return _userService.Update(user).Match<OneOf<IDynamicallySettable, ErrorInfo>>(
+                            user => user,
+                            error => error
+                        );
                 }
                 break;
             case "Order":
                 if (data.Length != typeof(Order).GetProperties().Length)
-                    return new ErrorInfo(System.Net.HttpStatusCode.BadRequest, $"Невозможно обновить таблицу: данные имеют длину {data.Length} полей а {table} таблица имеет {typeof(Order).GetProperties().Length}");
-                var order = new Order(data);
+                    return new ErrorInfo(Codes.BadRequest, $"Невозможно обновить таблицу: данные имеют длину {data.Length} полей а {table} таблица имеет {typeof(Order).GetProperties().Length}");
+                Order order = new Order(data);
+
+                if (order.Id < 0)
+                    return new ErrorInfo(Codes.BadRequest, "Поля объекта содержат неверные данные, проверьте правильность введенных данных");
+                
                 switch (action)
                 {
                     case DatabaseAction.Post:
-                        order = _orderService.Add(order);
-                        if (order is null)
-                            return new ErrorInfo(System.Net.HttpStatusCode.NotFound, "Невозможно добавить данные, добавляемая сущность имеет неверный формат данных");
-                        return order;
+                        return _orderService.Add(order).Match<OneOf<IDynamicallySettable, ErrorInfo>>(
+                            order => order,
+                            error => error
+                        );
 
                     case DatabaseAction.Delete:
-                        order = _orderService.Delete(order);
-                        if (order is null)
-                            return new ErrorInfo(System.Net.HttpStatusCode.NotFound, "Невозможно удалить данные, заказ не существует");
-                        return order;
+                        return _orderService.Delete(order).Match<OneOf<IDynamicallySettable, ErrorInfo>>(
+                            order => order,
+                            error => error
+                        );
 
                     case DatabaseAction.Update:
-                        order = _orderService.Update(order);
-                        if (order is null)
-                            return new ErrorInfo(System.Net.HttpStatusCode.NotFound, "Невозможно обновить данные, заказ не существует");
-                        return order;
+                        return _orderService.Update(order).Match<OneOf<IDynamicallySettable, ErrorInfo>>(
+                            order => order,
+                            error => error
+                        );
                 }
                 break;
         }
-        return new ErrorInfo(System.Net.HttpStatusCode.NotFound, "Unable to perform database action");
+        return new ErrorInfo(Codes.NotFound, "Невозможно совершить операцию с базой данных!");
     }
 }

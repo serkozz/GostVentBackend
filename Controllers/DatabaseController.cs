@@ -39,6 +39,9 @@ public class DatabaseController : ControllerBase
     {
         var result = _databaseService.PerformAction(action, table, data)
         .Match(
+            /// При возврате здесь не интерфейса IDynamicallySettable а object'a, происходит вызов первого делегата вне зависимости
+            /// от того является ли объект результатом выполнения или ошибкой, так как оба они
+            /// предки класса object, отсюда уточнее по интерфейсу
             obj => Results.Ok(obj),
             error => Results.NotFound(error)
         );

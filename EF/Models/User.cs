@@ -19,13 +19,22 @@ public partial class User : IDynamicallySettable, IDynamicallyUpdatable<User>
 
     public User(string[] fields)
     {
-        PropertySetLooping(fields);
+        try
+        {
+            PropertySetLooping(fields);
+        }
+        catch (System.Exception)
+        {
+            /// Устанавливаем несуществующий айди,
+            /// это признак неверной динамической инициализации объекта
+            this.Id = -1;
+        }
     }
 
     public void PropertySetLooping(string[] fields)
     {
         PropertyInfo[] properties = this.GetType().GetProperties();
-
+        bool parseRes = true;
         for (var i = 0; i < properties.Length; i++)
         {
             if (!properties[i].CanWrite)
@@ -34,13 +43,21 @@ public partial class User : IDynamicallySettable, IDynamicallyUpdatable<User>
             switch (i)
             {
                 case 0:
-                    Int64.TryParse(fields[i], out long int64);
+                    parseRes = Int64.TryParse(fields[i], out long int64);
                     properties[i].SetValue(this, int64);
+                    break;
+                case 2:
+                    if (fields[i].Contains("_"))
+                        throw new InvalidCastException("Email не может содержать символ '_'");
+                    properties[i].SetValue(this, fields[i]);
                     break;
                 default:
                     properties[i].SetValue(this, fields[i]);
                     break;
             }
+
+            if (parseRes == false)
+                throw new InvalidCastException($"Свойство {properties[i].Name} имеет тип {properties[i].PropertyType}, назначаемое значение: {fields[i]} имеет отличный тип");
         }
     }
 
@@ -53,20 +70,10 @@ public partial class User : IDynamicallySettable, IDynamicallyUpdatable<User>
             props[i].SetValue(this, props[i].GetValue(other));
         }
     }
-
-    // public override string ToString()
-    // {
-    //     return JsonConvert.SerializeObject(this);
-    // }
 }
 
 public partial class UserShort
 {
     public string Email { get; set; }
     public string Password { get; set; }
-
-    // public override string ToString()
-    // {
-    //     return JsonConvert.SerializeObject(this);
-    // }
 }

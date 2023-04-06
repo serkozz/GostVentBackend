@@ -52,7 +52,6 @@ if (storageServiceCollection is null)
     throw new InvalidCastException("Cant get StorageServiceCollection from services");
 
 storageServiceCollection.TryAddService(new DropboxStorageService(builder.Configuration));
-storageServiceCollection.TryAddService(new FileSystemStorageService());
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

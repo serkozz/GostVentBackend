@@ -24,46 +24,87 @@ public partial class Order : IDynamicallySettable, IDynamicallyUpdatable<Order>
 
     public Order(string[] fields)
     {
-        PropertySetLooping(fields);
+        try
+        {
+            PropertySetLooping(fields);
+        }
+        catch (System.Exception)
+        {
+            /// Устанавливаем несуществующий айди,
+            /// это признак неверной динамической инициализации объекта
+            this.Id = -1;
+        }
     }
 
     public void PropertySetLooping(string[] fields)
     {
         PropertyInfo[] properties = this.GetType().GetProperties();
+        bool parseRes = true;
 
         for (var i = 0; i < properties.Length; i++)
         {
             if (!properties[i].CanWrite)
                 throw new IOException($"{properties[i].Name} cant be writen!!!");
-
             switch (i)
             {
                 case 0:
-                    Int64.TryParse(fields[i], out long int64);
+                    parseRes = Int64.TryParse(fields[i], out long int64);
+                    if (int64 < 0)
+                    {
+                        parseRes = false;
+                        break;
+                    }
                     properties[i].SetValue(this, int64);
                     break;
                 case 2:
-                    Enum.TryParse(fields[i], out ProductType productType);
+                    parseRes = Int32.TryParse(fields[i], out int productTypeInt);
+                    if (productTypeInt < 0 || productTypeInt >= Enum.GetNames(typeof(ProductType)).Length)
+                    {
+                        parseRes = false;
+                        break;
+                    }
+                    parseRes = Enum.TryParse(fields[i], out ProductType productType);
                     properties[i].SetValue(this, productType);
                     break;
                 case 3:
-                    DateOnly.TryParse(fields[i], out DateOnly date);
+                    parseRes = DateOnly.TryParse(fields[i], out DateOnly date);
                     properties[i].SetValue(this, date);
                     break;
                 case 4:
-                    Int32.TryParse(fields[i], out int LeadDays);
-                    properties[i].SetValue(this, LeadDays);
+                    parseRes = Int32.TryParse(fields[i], out int leadDays);
+                    if (leadDays <= 0)
+                    {
+                        parseRes = false;
+                        break;
+                    }
+                    properties[i].SetValue(this, Math.Abs(leadDays));
                     break;
                 case 5:
-                    Enum.TryParse(fields[i], out OrderStatus orderStatus);
+                    parseRes = Int32.TryParse(fields[i], out int orderStatusInt);
+                    if (orderStatusInt < 0 || orderStatusInt >= Enum.GetNames(typeof(OrderStatus)).Length)
+                    {
+                        parseRes = false;
+                        break;
+                    }
+                    parseRes = Enum.TryParse(fields[i], out OrderStatus orderStatus);
                     properties[i].SetValue(this, orderStatus);
                     break;
                 case 6:
-                    Int32.TryParse(fields[i], out int price);
-                    properties[i].SetValue(this, price);
+                    parseRes = Int32.TryParse(fields[i], out int price);
+                    if (price < 0)
+                    {
+                        parseRes = false;
+                        break;
+                    }
+                    properties[i].SetValue(this, Math.Abs(price));
                     break;
                 case 7:
-                    Int64.TryParse(fields[i], out long clientId);
+                    parseRes = Int64.TryParse(fields[i], out long clientId);
+                    if (clientId < 0)
+                    {
+                        parseRes = false;
+                        break;
+                    }
                     properties[i].SetValue(this, clientId);
                     break;
                 case 8:
@@ -72,6 +113,9 @@ public partial class Order : IDynamicallySettable, IDynamicallyUpdatable<Order>
                     properties[i].SetValue(this, fields[i]);
                     break;
             }
+
+            if (parseRes == false)
+                throw new InvalidCastException($"Свойство {properties[i].Name} имеет тип {properties[i].PropertyType}, назначаемое значение: {fields[i]} имеет отличный тип");
         }
     }
 
@@ -83,10 +127,5 @@ public partial class Order : IDynamicallySettable, IDynamicallyUpdatable<Order>
         {
             props[i].SetValue(this, props[i].GetValue(other));
         }
-    }
-
-    public override string ToString()
-    {
-        return JsonConvert.SerializeObject(this);
     }
 }

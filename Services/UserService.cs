@@ -19,6 +19,12 @@ public class UserService : IDatabaseModelService<User>
     {
         _db = db;
     }
+
+    /// <summary>
+    /// Получение пользователя по почте
+    /// </summary>
+    /// <param name="email"></param>
+    /// <returns></returns>
     public OneOf<User, ErrorInfo> GetUserData(string email)
     {
         User? user = GetUser(email);
@@ -27,7 +33,17 @@ public class UserService : IDatabaseModelService<User>
         return new ErrorInfo(System.Net.HttpStatusCode.NotFound, $"User with email: {email} not found!");
     }
 
+    /// <summary>
+    /// Получение списка всех пользователей
+    /// </summary>
+    /// <returns></returns>
     public List<User> GetAllUsers() => _db.Users.ToList();
+
+    /// <summary>
+    /// Авторизация существующего пользователя
+    /// </summary>
+    /// <param name="loginUser"></param>
+    /// <returns></returns>
     public OneOf<User, ErrorInfo> LoginUser(UserShort loginUser)
     {
         if (!CheckEmailExist(loginUser.Email))
@@ -40,6 +56,12 @@ public class UserService : IDatabaseModelService<User>
         user.Token = CreateJwtToken(user);
         return user;
     }
+
+    /// <summary>
+    /// Регистрация нового пользователя
+    /// </summary>
+    /// <param name="user"></param>
+    /// <returns></returns>
     public OneOf<User, ErrorInfo> RegisterUser(User user)
     {
         if (CheckEmailExist(user.Email))
@@ -56,6 +78,11 @@ public class UserService : IDatabaseModelService<User>
         return entry.Entity;
     }
 
+    /// <summary>
+    /// Получение роли пользователя
+    /// </summary>
+    /// <param name="username"></param>
+    /// <returns></returns>
     public OneOf<string, ErrorInfo> GetUserRole(string username)
     {
         if (!CheckUsernameExist(username))
@@ -66,6 +93,12 @@ public class UserService : IDatabaseModelService<User>
         return user.Role;
     }
 
+    /// <summary>
+    /// Установка роли пользователя
+    /// </summary>
+    /// <param name="username"></param>
+    /// <param name="role"></param>
+    /// <returns></returns>
     public OneOf<User, ErrorInfo> SetUserRole(string username, string role)
     {
         if (!CheckUsernameExist(username))
@@ -77,6 +110,12 @@ public class UserService : IDatabaseModelService<User>
         _db.SaveChanges();
         return user;
     }
+
+    /// <summary>
+    /// Создание JSON Web Token'а, содержащего информацию о пользователе, необходимую для дифференциации прав
+    /// </summary>
+    /// <param name="user"></param>
+    /// <returns></returns>
     private string CreateJwtToken(User user)
     {
         var jwtTokenHandler = new JwtSecurityTokenHandler();
@@ -98,10 +137,32 @@ public class UserService : IDatabaseModelService<User>
         return jwtTokenHandler.WriteToken(token);
     }
 
+    /// <summary>
+    /// Существует ли такое имя пользователя в БД
+    /// </summary>
+    /// <param name="username"></param>
+    /// <returns></returns>
     private bool CheckUsernameExist(string username) => _db.Users.Any(user => user.Username == username);
+    
+    /// <summary>
+    /// Существует ли такой Email в базе БД
+    /// </summary>
+    /// <param name="email"></param>
+    /// <returns></returns>
     private bool CheckEmailExist(string email) => _db.Users.Any(user => user.Email == email);
+
+    /// <summary>
+    /// Получение информации о пользователе по почте
+    /// </summary>
+    /// <param name="email"></param>
+    /// <returns></returns>
     private User? GetUser(string email) => _db.Users.FirstOrDefault(user => user.Email == email);
 
+    /// <summary>
+    /// Добавление пользователя в БД
+    /// </summary>
+    /// <param name="user"></param>
+    /// <returns></returns>
     public OneOf<User, ErrorInfo> Add(User user)
     {
         /// Добавление нового пользователя по сути это регистрация, валидность введенных данных проверяется в методе регистрации
@@ -130,6 +191,11 @@ public class UserService : IDatabaseModelService<User>
         }
     }
 
+    /// <summary>
+    /// Обновление пользователя в БД
+    /// </summary>
+    /// <param name="user"></param>
+    /// <returns></returns>
     public OneOf<User, ErrorInfo> Update(User user)
     {
         try
@@ -155,6 +221,11 @@ public class UserService : IDatabaseModelService<User>
         }
     }
 
+    /// <summary>
+    /// Удаление пользователя из БД
+    /// </summary>
+    /// <param name="user"></param>
+    /// <returns></returns>
     public OneOf<User, ErrorInfo> Delete(User user)
     {
         try

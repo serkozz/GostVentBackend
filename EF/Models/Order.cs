@@ -110,6 +110,11 @@ public partial class Order : IDynamicallySettable, IDynamicallyUpdatable<Order>
                 case 8:
                     break;
                 default:
+                    if (fields[i].Contains('_'))
+                    {
+                        parseRes = false;
+                        break;
+                    }
                     properties[i].SetValue(this, fields[i]);
                     break;
             }

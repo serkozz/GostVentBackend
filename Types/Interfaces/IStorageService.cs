@@ -1,8 +1,11 @@
+using OneOf;
+using Types.Classes;
+
 namespace Types.Interfaces;
 
 public interface IStorageService
 {
-    public Task UploadFile(string folderName, string fileName, Stream stream);
+    public Task<OneOf<object, ErrorInfo>> UploadFileAsync(string folderName, string fileName, Stream stream);
 
-    public Task DownloadFile(string folderName, string fileName, string localPath);
+    public Task<OneOf<object, ErrorInfo>> DownloadFileAsync(string folderName, string fileName, string localPath);
 }

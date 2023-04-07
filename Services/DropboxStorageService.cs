@@ -54,8 +54,27 @@ public class DropboxStorageService : IStorageService
     {
         try
         {
-            DeleteResult deleteResult = await _dropboxClient.Files.DeleteV2Async(path);
+            DeleteResult deleteResult = await _dropboxClient.Files.DeleteV2Async($"{BASE_ORDERS_DROPBOX_PATH}/{path}");
             return deleteResult;
+        }
+        catch (Exception ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"Ошибка DropboxAPI: {ex.Message}");
+        }
+    }
+
+    public async Task<OneOf<object, ErrorInfo>> CreateFolderAsync(string path)
+    {
+        try
+        {
+            CreateFolderResult createFolderResult = await _dropboxClient.Files.CreateFolderV2Async(
+                new CreateFolderArg(
+                    path: $"{BASE_ORDERS_DROPBOX_PATH}/{path}",
+                    autorename: false
+                )
+            );
+
+            return createFolderResult;
         }
         catch (Exception ex)
         {
@@ -69,8 +88,8 @@ public class DropboxStorageService : IStorageService
         {
             RelocationResult relocationResult = await _dropboxClient.Files.MoveV2Async(
                 new RelocationArg(
-                    fromPath: oldPath,
-                    toPath: newPath,
+                    fromPath: $"{BASE_ORDERS_DROPBOX_PATH}/{oldPath}",
+                    toPath: $"{BASE_ORDERS_DROPBOX_PATH}/{newPath}",
                     false,
                     autorename: true,
                     allowOwnershipTransfer: false
@@ -78,6 +97,25 @@ public class DropboxStorageService : IStorageService
             );
 
             return relocationResult;
+        }
+        catch (Exception ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"Ошибка DropboxAPI: {ex.Message}");
+        }
+    }
+
+    public async Task<OneOf<bool, ErrorInfo>> ExistsAsync(string path)
+    {
+        try
+        {
+            Metadata searchMetadata = await _dropboxClient.Files.GetMetadataAsync($"{BASE_ORDERS_DROPBOX_PATH}/{path}");
+            if (searchMetadata is not null)
+                return true;
+            return false;
+        }
+        catch (Dropbox.Api.ApiException<GetMetadataError> ex)
+        {
+            return false;
         }
         catch (Exception ex)
         {

@@ -5,7 +5,7 @@ using Types.Interfaces;
 
 namespace EF.Models;
 
-public partial class User : IDynamicallySettable, IDynamicallyUpdatable<User>
+public partial class User : IDynamicallySettable
 {
     [Key]
     public long Id { get; set; }
@@ -35,7 +35,7 @@ public partial class User : IDynamicallySettable, IDynamicallyUpdatable<User>
     {
         PropertyInfo[] properties = this.GetType().GetProperties();
         bool parseRes = true;
-        for (var i = 0; i < properties.Length; i++)
+        for (var i = 1; i < properties.Length; i++)
         {
             if (!properties[i].CanWrite)
                 throw new IOException($"{properties[i].Name} cant be writen!!!");
@@ -43,7 +43,12 @@ public partial class User : IDynamicallySettable, IDynamicallyUpdatable<User>
             switch (i)
             {
                 case 0:
-                    parseRes = Int64.TryParse(fields[i], out long int64);
+                    Int64.TryParse(fields[i], out long int64);
+                    if (int64 < 0)
+                    {
+                        parseRes = false;
+                        break;
+                    }
                     properties[i].SetValue(this, int64);
                     break;
                 case 2:
@@ -58,16 +63,6 @@ public partial class User : IDynamicallySettable, IDynamicallyUpdatable<User>
 
             if (parseRes == false)
                 throw new InvalidCastException($"Свойство {properties[i].Name} имеет тип {properties[i].PropertyType}, назначаемое значение: {fields[i]} имеет отличный тип");
-        }
-    }
-
-    public void UpdateSelfDynamically(User other)
-    {
-        PropertyInfo[] props = this.GetType().GetProperties();
-
-        for (var i = 0; i < props.Length; i++)
-        {
-            props[i].SetValue(this, props[i].GetValue(other));
         }
     }
 }

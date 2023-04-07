@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Services;
+using Types.Classes;
+using Codes = System.Net.HttpStatusCode;
 
 namespace Backend.Controllers;
 
@@ -20,26 +22,31 @@ public class OrderController : ControllerBase
     }
 
     [HttpGet()]
-    [Route("/order")]
+    [Route("{email?}")]
+    [Authorize()]
+    public IResult GetOrdersByEmail([FromQuery()] string email)
+    {
+        /// FIXME: (FIXED) Пользователь может получить не только свои, но и чужие заказы
+        /// напрямую введя чужую почту
+        var userEmailClaim = User.FindFirst(claim => claim.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress");
+
+        if (userEmailClaim.Value != email)
+            return Results.NotFound(new ErrorInfo(Codes.NotFound, $"Email: {userEmailClaim.Value} авторизованного пользователя не совпадает с Email: {email} запрашиваемого. Нельзя просматривать не свои заказы!"));
+
+        return Results.Ok(_orderService.GetOrdersByEmail(email));
+    }
+
+    [HttpGet()]
+    [Route("/orders")]
     [Authorize(Roles="Admin")]
     public IResult GetOrders()
     {
         return Results.Ok(_orderService.GetAllOrders());
     }
 
-    [HttpGet()]
-    [Route("/order/{email?}")]
-    [Authorize()]
-    public IResult GetOrdersByEmail([FromQuery()] string email)
-    {
-        var userInfo = User;
-        /// FIXME: Пользователь может получить не только свои, но и чужие заказы
-        /// напрямую введя чужую почту
-        return Results.Ok(_orderService.GetOrdersByEmail(email));
-    }
 
     [HttpPost()]
-    [Route("/order/{orderName?}")]
+    [Route("{orderName?}")]
     [Authorize()]
     public IResult CreateOrder([FromForm()] IFormCollection form, [FromQuery()] string orderName)
     {
@@ -52,12 +59,17 @@ public class OrderController : ControllerBase
     }
 
     [HttpDelete()]
-    [Route("/order/{orderName?}")]
+    [Route("{email?}/{orderName?}")]
     [Authorize()]
-    public IResult DeleteOrder([FromQuery()] string orderName)
+    public IResult DeleteOrder([FromQuery()] string email, [FromQuery()] string orderName)
     {
-        /// FIXME: Удалять заказ на основе данных, полученных в JWT токене (email)
-        return _orderService.DeleteOrder(orderName).Result.Match(
+        /// FIXME: (FIXED) Удалять заказ на основе данных, полученных в JWT токене (email)
+        var userEmailClaim = User.FindFirst(claim => claim.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress");
+
+        if (userEmailClaim.Value != email)
+            return Results.NotFound(new ErrorInfo(Codes.NotFound, $"Email: {userEmailClaim.Value} авторизованного пользователя не совпадает с Email: {email} запрашиваемого. Нельзя удалять не свои заказы!"));
+
+        return _orderService.DeleteOrder(orderName, email).Result.Match(
             order => Results.Ok(order),
             error => Results.NotFound(error) 
         );

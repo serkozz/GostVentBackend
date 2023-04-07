@@ -11,7 +11,6 @@ namespace Services;
 public class OrderService : IDatabaseModelService<Order>
 {
     private readonly SQLiteContext _db;
-    // public Exception? DatabaseException { get; private set; } = null;
     private readonly UserService _userService;
     private readonly StorageServiceCollection _storageServiceCollection;
     public OrderService(SQLiteContext db, UserService userService, StorageServiceCollection storageServiceCollection)
@@ -69,7 +68,7 @@ public class OrderService : IDatabaseModelService<Order>
             Client = orderClient,
             Name = orderNameSplitted[1],
             ProductType = productType,
-            CreationDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            CreationDate = DateOnly.FromDateTime(DateTime.Now),
             LeadDays = 3,
             Price = 0,
             Status = OrderStatus.Created
@@ -89,35 +88,41 @@ public class OrderService : IDatabaseModelService<Order>
         }
 
         /// (БД:Запись ЕСТЬ, Dropbox:Запись ЕСТЬ)
-        return order;
+        return addResult.AsT0;
     }
 
-    public async Task<OneOf<Order, ErrorInfo>> DeleteOrder(string orderName)
+    public async Task<OneOf<Order, ErrorInfo>> DeleteOrder(string orderName, string email)
     {
+        User? orderClient = _db.Users.FirstOrDefault(
+            user => user.Email == email
+        );
+
+        if (orderClient is null)
+            return new ErrorInfo(Codes.NotFound, "Невозможно получить клиента заказа, без него заказ не может быть удален!");
+
         Order? order = _db.Orders.FirstOrDefault(
-            order => order.Name == orderName
+            order => order.Name == orderName && order.ClientId == orderClient.Id
         );
 
         if (order is null)
             return new ErrorInfo(Codes.NotFound, "Невозможно получить удаляемый заказ по его имени!");
 
         var removedEntityEntry = _db.Orders.Remove(order);
-        User? orderClient = _db.Users.FirstOrDefault(
-            user => user.Id == order.ClientId
-        );
         var client = _storageServiceCollection.TryGetService(typeof(DropboxStorageService)) as DropboxStorageService;
 
         if (client is null)
             return new ErrorInfo(Codes.NotFound, "Невозможно получить клиент хранилища без него заказ не может быть удален!");
-        
-        if (orderClient is null)
-            return new ErrorInfo(Codes.NotFound, "Невозможно получить клиента заказа, без него заказ не может быть удален!");
 
         if (removedEntityEntry.State == EntityState.Deleted)
         {
             string dropboxOrderPath = $"{orderClient.Email}/{order.Name + '_' + order.ProductType.ToString() + '_' + order.CreationDate.ToString()}";
             var deleteResult = await client.DeleteAsync(dropboxOrderPath);
-            return removedEntityEntry.Entity;
+            if (deleteResult.IsT0)
+            {
+                _db.SaveChanges();
+                return removedEntityEntry.Entity;
+            }
+            return deleteResult.AsT1;
         }
 
         return new ErrorInfo(Codes.NotFound, "Заказ не был удален, возможно он был удален раннее");
@@ -148,14 +153,49 @@ public class OrderService : IDatabaseModelService<Order>
     /// </summary>
     /// <param name="order"></param>
     /// <returns></returns>
-    public OneOf<Order, ErrorInfo> Add(Order order)
+    public OneOf<Order, ErrorInfo> Add(Order order, object? additionalArgs = null)
     {
         try
         {
             var entry = _db.Orders.Add(order);
-            _db.SaveChanges();
 
-            return entry.Entity;
+            if (additionalArgs is not null)
+            {
+                OneOf<User, ErrorInfo> userOrError = _userService.GetUserData(entry.Entity.ClientId);
+
+                if (userOrError.IsT1)
+                    return userOrError.AsT1;
+                
+                User user = userOrError.AsT0;
+
+                var client = _storageServiceCollection.TryGetService(typeof(DropboxStorageService)) as DropboxStorageService;
+
+                if (client is null)
+                    return new ErrorInfo(Codes.NotFound, "Невозможно получить клиент хранилища без него заказ не может быть создан!");
+
+                string dropboxOrderPath = $"{user.Email}/{order.Name + '_' + order.ProductType.ToString() + '_' + order.CreationDate.ToString()}";
+
+                var dropboxFolderExists = client.ExistsAsync(dropboxOrderPath).Result;
+
+                if (dropboxFolderExists.IsT1)
+                    return dropboxFolderExists.AsT1;
+                
+                if (dropboxFolderExists.AsT0 == false)
+                {
+                    var creationResult = client.CreateFolderAsync(dropboxOrderPath).Result;
+                    if (creationResult.IsT1)
+                        return creationResult.AsT1;
+                }
+            }
+
+            if (entry.State == EntityState.Added)
+            {
+                _db.SaveChanges();
+                return entry.Entity;
+            }
+
+            return new ErrorInfo(Codes.NotFound, "Невозможно добавить заказ в БД");
+
         }
         catch (DbUpdateConcurrencyException ex)
         {
@@ -172,7 +212,7 @@ public class OrderService : IDatabaseModelService<Order>
     /// </summary>
     /// <param name="order"></param>
     /// <returns></returns>
-    public OneOf<Order, ErrorInfo> Delete(Order order)
+    public OneOf<Order, ErrorInfo> Delete(Order order, object? additionalArgs = null)
     {
         try
         {
@@ -180,9 +220,44 @@ public class OrderService : IDatabaseModelService<Order>
             Order? dbOrder = _db.Orders.FirstOrDefault<Order>(dbOrder => dbOrder.Id == order.Id);
             if (dbOrder is null)
                 return new ErrorInfo(Codes.NotFound, "Заказ не найден!");
+
             var entry = _db.Orders.Remove(dbOrder);
-            _db.SaveChanges();
-            return entry.Entity;
+
+            if (additionalArgs is not null)
+            {
+                OneOf<User, ErrorInfo> userOrError = _userService.GetUserData(entry.Entity.ClientId);
+
+                if (userOrError.IsT1)
+                    return userOrError.AsT1;
+                
+                User user = userOrError.AsT0;
+
+                var client = _storageServiceCollection.TryGetService(typeof(DropboxStorageService)) as DropboxStorageService;
+
+                if (client is null)
+                    return new ErrorInfo(Codes.NotFound, "Невозможно получить клиент хранилища без него заказ не может быть создан!");
+
+                string dropboxOrderPath = $"{user.Email}/{order.Name + '_' + order.ProductType.ToString() + '_' + order.CreationDate.ToString()}";
+
+                var dropboxFolderExists = client.ExistsAsync(dropboxOrderPath).Result;
+
+                if (dropboxFolderExists.IsT1)
+                    return dropboxFolderExists.AsT1;
+                
+                if (dropboxFolderExists.AsT0 == true)
+                {
+                    var deleteResult = client.DeleteAsync(dropboxOrderPath).Result;
+                    if (deleteResult.IsT1)
+                        return deleteResult.AsT1;
+                }
+            }
+            if (entry.State == EntityState.Deleted)
+            {
+                _db.SaveChanges();
+                return entry.Entity;
+            }
+
+            return new ErrorInfo(Codes.NotFound, "Невозможно удалить заказ из БД");
         }
         catch (DbUpdateConcurrencyException ex)
         {
@@ -199,7 +274,7 @@ public class OrderService : IDatabaseModelService<Order>
     /// </summary>
     /// <param name="order"></param>
     /// <returns></returns>
-    public OneOf<Order, ErrorInfo> Update(Order order)
+    public OneOf<Order, ErrorInfo> Update(Order order, object? additionalArgs = null)
     {
         try
         {
@@ -207,9 +282,59 @@ public class OrderService : IDatabaseModelService<Order>
             Order? dbOrder = _db.Orders.FirstOrDefault<Order>(dbOrder => dbOrder.Id == order.Id);
             if (dbOrder is null)
                 return new ErrorInfo(Codes.NotFound, "Заказ не найден!");
-            dbOrder.UpdateSelfDynamically(order);
-            _db.SaveChanges();
-            return dbOrder;
+            OneOf<User, ErrorInfo> oldUserOrError = _userService.GetUserData(dbOrder.ClientId);
+
+            if (oldUserOrError.IsT1)
+                return oldUserOrError.AsT1;
+            
+            User oldUser = oldUserOrError.AsT0;
+            Order oldOrder = (Order)dbOrder.Clone();
+
+            _db.Entry(dbOrder).State = EntityState.Detached;
+            dbOrder = order;
+            _db.Entry(dbOrder).State = EntityState.Modified;
+
+            var entry = _db.Entry(dbOrder);
+            if (additionalArgs is not null)
+            {
+                OneOf<User, ErrorInfo> newUserOrError = _userService.GetUserData(entry.Entity.ClientId);
+
+                if (newUserOrError.IsT1)
+                    return newUserOrError.AsT1;
+                
+                User newUser = newUserOrError.AsT0;
+                Order newOrder = entry.Entity;
+
+                var client = _storageServiceCollection.TryGetService(typeof(DropboxStorageService)) as DropboxStorageService;
+
+                if (client is null)
+                    return new ErrorInfo(Codes.NotFound, "Невозможно получить клиент хранилища без него заказ не может быть создан!");
+
+                string dropboxOldOrderPath = $"{oldUser.Email}/{oldOrder.Name + '_' + oldOrder.ProductType.ToString() + '_' + oldOrder.CreationDate.ToString()}";
+                string dropboxNewOrderPath = $"{newUser.Email}/{newOrder.Name + '_' + newOrder.ProductType.ToString() + '_' + newOrder.CreationDate.ToString()}";
+
+                var dropboxFolderExists = client.ExistsAsync(dropboxOldOrderPath).Result;
+
+                if (dropboxFolderExists.IsT1)
+                    return dropboxFolderExists.AsT1;
+                
+                if (dropboxFolderExists.AsT0 == true)
+                {
+                    var moveResult = client.MoveAsync(dropboxOldOrderPath, dropboxNewOrderPath).Result;
+                    if (moveResult.IsT1)
+                        return moveResult.AsT1;
+                }
+            }
+            /// FIXME: (FIXED) Он должен фиксировать изменение как модификацию а не как удаление или отсоединение
+            /// Если здесь Deleted, то запись удаляется
+            /// Если тут Detached, то она не меняется в базе, но меняется ее имя на дропбоксе
+            if (entry.State == EntityState.Modified)
+            {
+                _db.SaveChanges();
+                return entry.Entity;
+            }
+
+            return new ErrorInfo(Codes.NotFound, "Невозможно обновить заказ в БД");
         }
         catch (DbUpdateConcurrencyException ex)
         {

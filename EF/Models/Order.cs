@@ -6,7 +6,7 @@ using Types.Interfaces;
 
 namespace EF.Models;
 
-public partial class Order : IDynamicallySettable, IDynamicallyUpdatable<Order>
+public partial class Order : IDynamicallySettable, ICloneable
 {
     [Key]
     public long Id { get; set; }
@@ -48,7 +48,7 @@ public partial class Order : IDynamicallySettable, IDynamicallyUpdatable<Order>
             switch (i)
             {
                 case 0:
-                    parseRes = Int64.TryParse(fields[i], out long int64);
+                    Int64.TryParse(fields[i], out long int64);
                     if (int64 < 0)
                     {
                         parseRes = false;
@@ -124,13 +124,19 @@ public partial class Order : IDynamicallySettable, IDynamicallyUpdatable<Order>
         }
     }
 
-    public void UpdateSelfDynamically(Order other)
+    public object Clone()
     {
-        PropertyInfo[] props = this.GetType().GetProperties();
-
-        for (var i = 0; i < props.Length; i++)
+        return new Order()
         {
-            props[i].SetValue(this, props[i].GetValue(other));
-        }
+            Id = this.Id,
+            Client = this.Client,
+            ClientId = this.ClientId,
+            CreationDate = this.CreationDate,
+            LeadDays = this.LeadDays,
+            Name = this.Name,
+            Price = this.Price,
+            ProductType = this.ProductType,
+            Status = this.Status
+        };
     }
 }

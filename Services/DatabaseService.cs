@@ -75,19 +75,19 @@ public class DatabaseService
                 switch (action)
                 {
                     case DatabaseAction.Post:
-                        return _orderService.Add(order).Match<OneOf<IDynamicallySettable, ErrorInfo>>(
+                        return _orderService.Add(order, additionalArgs: true).Match<OneOf<IDynamicallySettable, ErrorInfo>>(
                             order => order,
                             error => error
                         );
 
                     case DatabaseAction.Delete:
-                        return _orderService.Delete(order).Match<OneOf<IDynamicallySettable, ErrorInfo>>(
+                        return _orderService.Delete(order, additionalArgs: true).Match<OneOf<IDynamicallySettable, ErrorInfo>>(
                             order => order,
                             error => error
                         );
 
                     case DatabaseAction.Update:
-                        return _orderService.Update(order).Match<OneOf<IDynamicallySettable, ErrorInfo>>(
+                        return _orderService.Update(order, additionalArgs: true).Match<OneOf<IDynamicallySettable, ErrorInfo>>(
                             order => order,
                             error => error
                         );

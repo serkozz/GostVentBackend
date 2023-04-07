@@ -30,7 +30,23 @@ public class UserService : IDatabaseModelService<User>
         User? user = GetUser(email);
         if (user is not null)
             return user;
-        return new ErrorInfo(System.Net.HttpStatusCode.NotFound, $"User with email: {email} not found!");
+        return new ErrorInfo(Codes.NotFound, $"Пользователь с почтой: {email} не найден!");
+    }
+
+    /// <summary>
+    /// Получение пользователя по Id
+    /// </summary>
+    /// <param name="email"></param>
+    /// <returns></returns>
+    public OneOf<User, ErrorInfo> GetUserData(long id)
+    {
+        User? user = _db.Users.FirstOrDefault(
+            user => user.Id == id
+        );
+
+        if (user is not null)
+            return user;
+        return new ErrorInfo(Codes.NotFound, $"Пользователь с id: {id} не найден!");
     }
 
     /// <summary>
@@ -47,12 +63,12 @@ public class UserService : IDatabaseModelService<User>
     public OneOf<User, ErrorInfo> LoginUser(UserShort loginUser)
     {
         if (!CheckEmailExist(loginUser.Email))
-            return new ErrorInfo(System.Net.HttpStatusCode.NotFound, $"Пользователь с такой почтой не существует");
+            return new ErrorInfo(Codes.NotFound, $"Пользователь с такой почтой не существует");
         User? user = GetUser(loginUser.Email);
         if (user is null)
-            return new ErrorInfo(System.Net.HttpStatusCode.NotFound, $"Внутренняя ошибка сервера!!!");
+            return new ErrorInfo(Codes.NotFound, $"Внутренняя ошибка сервера!!!");
         if (!PasswordUtility.VerifyPassword(loginUser.Password, user.Password))
-            return new ErrorInfo(System.Net.HttpStatusCode.NotFound, $"Неверный пароль");
+            return new ErrorInfo(Codes.NotFound, $"Неверный пароль");
         user.Token = CreateJwtToken(user);
         return user;
     }
@@ -65,12 +81,12 @@ public class UserService : IDatabaseModelService<User>
     public OneOf<User, ErrorInfo> RegisterUser(User user)
     {
         if (CheckEmailExist(user.Email))
-            return new ErrorInfo(System.Net.HttpStatusCode.NotFound, $"Пользователь с такой почтой уже зарегистрирован");
+            return new ErrorInfo(Codes.NotFound, $"Пользователь с такой почтой уже зарегистрирован");
         if (CheckUsernameExist(user.Username))
-            return new ErrorInfo(System.Net.HttpStatusCode.NotFound, $"Пользователь с таким никнеймом уже зарегистрирован");
+            return new ErrorInfo(Codes.NotFound, $"Пользователь с таким никнеймом уже зарегистрирован");
         var passwordStrengthResult = Utility.CheckPasswordStrength(user.Password);
         if (!string.IsNullOrEmpty(passwordStrengthResult))
-            return new ErrorInfo(System.Net.HttpStatusCode.NotFound, $"Cлабый пароль:\n{passwordStrengthResult}");
+            return new ErrorInfo(Codes.NotFound, $"Cлабый пароль:\n{passwordStrengthResult}");
         user.Password = PasswordUtility.HashPassword(user.Password);
         user.Role = "User";
         var entry = _db.Users.Add(user);
@@ -86,10 +102,10 @@ public class UserService : IDatabaseModelService<User>
     public OneOf<string, ErrorInfo> GetUserRole(string username)
     {
         if (!CheckUsernameExist(username))
-            return new ErrorInfo(System.Net.HttpStatusCode.NotFound, $"Невозможно получить роль для незарегистрированного пользователя");
+            return new ErrorInfo(Codes.NotFound, $"Невозможно получить роль для незарегистрированного пользователя");
         User? user = _db.Users.Where(user => user.Username == username).FirstOrDefault();
         if (user is null)
-            return new ErrorInfo(System.Net.HttpStatusCode.NotFound, $"У данного пользователя не установлены права");
+            return new ErrorInfo(Codes.NotFound, $"У данного пользователя не установлены права");
         return user.Role;
     }
 
@@ -102,10 +118,10 @@ public class UserService : IDatabaseModelService<User>
     public OneOf<User, ErrorInfo> SetUserRole(string username, string role)
     {
         if (!CheckUsernameExist(username))
-            return new ErrorInfo(System.Net.HttpStatusCode.NotFound, $"Невозможно установить роль для незарегистрированного пользователя");
+            return new ErrorInfo(Codes.NotFound, $"Невозможно установить роль для незарегистрированного пользователя");
         User? user = _db.Users.Where(user => user.Username == username).FirstOrDefault();
         if (user is null)
-            return new ErrorInfo(System.Net.HttpStatusCode.NotFound, $"Несуществующий пользователь");
+            return new ErrorInfo(Codes.NotFound, $"Несуществующий пользователь");
         user.Role = role;
         _db.SaveChanges();
         return user;
@@ -163,7 +179,7 @@ public class UserService : IDatabaseModelService<User>
     /// </summary>
     /// <param name="user"></param>
     /// <returns></returns>
-    public OneOf<User, ErrorInfo> Add(User user)
+    public OneOf<User, ErrorInfo> Add(User user, object? additionalArgs = null)
     {
         /// Добавление нового пользователя по сути это регистрация, валидность введенных данных проверяется в методе регистрации
         try
@@ -196,14 +212,14 @@ public class UserService : IDatabaseModelService<User>
     /// </summary>
     /// <param name="user"></param>
     /// <returns></returns>
-    public OneOf<User, ErrorInfo> Update(User user)
+    public OneOf<User, ErrorInfo> Update(User user, object? additionalArgs = null)
     {
         try
         {
             User? dbUser = _db.Users.FirstOrDefault<User>(dbUser => dbUser.Id == user.Id);
             if (dbUser is null)
                 return new ErrorInfo(Codes.NotFound, "Пользователь не найден!");
-            dbUser.UpdateSelfDynamically(user);
+            dbUser = user;
             _db.SaveChanges();
             return dbUser;
         }
@@ -226,7 +242,7 @@ public class UserService : IDatabaseModelService<User>
     /// </summary>
     /// <param name="user"></param>
     /// <returns></returns>
-    public OneOf<User, ErrorInfo> Delete(User user)
+    public OneOf<User, ErrorInfo> Delete(User user, object? additionalArgs = null)
     {
         try
         {

@@ -128,6 +128,43 @@ public class OrderService : IDatabaseModelService<Order>
         return new ErrorInfo(Codes.NotFound, "Заказ не был удален, возможно он был удален раннее");
     }
 
+    public async Task<OneOf<List<DropboxFileInfo>, ErrorInfo>> GetOrderFilesAsync(string email, string orderName)
+    {
+        List<DropboxFileInfo> ordersFilesInfo = new List<DropboxFileInfo>();
+        var client = _storageServiceCollection.TryGetService(typeof(DropboxStorageService)) as DropboxStorageService;
+
+        if (client is null)
+            return new ErrorInfo(Codes.NotFound, "Невозможно получить клиент хранилища без него файлы заказа не могут быть получены!");
+
+        var ordersFilesListOrError = await client.GetFilesAsync(email, orderName);
+
+        if (ordersFilesListOrError.IsT1)
+            return ordersFilesListOrError.AsT1;
+
+        List<Dropbox.Api.Files.Metadata> filesMetadata = ordersFilesListOrError.AsT0;
+
+        foreach (Dropbox.Api.Files.Metadata metadata in filesMetadata)
+        {
+            var linkResultOrError = await client.GetDownloadLinkAsync(metadata.PathLower);
+            if (linkResultOrError.IsT1)
+                return linkResultOrError.AsT1;
+            
+            var linkResult = linkResultOrError.AsT0;
+            
+            DropboxFileInfo dfi = new DropboxFileInfo()
+            {
+                Name = linkResult.Metadata.Name,
+                FileSize = linkResult.Metadata.Size,
+                Link = linkResult.Link,
+                DropboxPath = linkResult.Metadata.PathDisplay
+            };
+
+            ordersFilesInfo.Add(dfi);
+        }
+
+        return ordersFilesInfo;
+    }
+
     /// <summary>
     /// Получение всех заказов всех клиентов
     /// </summary>
@@ -165,7 +202,7 @@ public class OrderService : IDatabaseModelService<Order>
 
                 if (userOrError.IsT1)
                     return userOrError.AsT1;
-                
+
                 User user = userOrError.AsT0;
 
                 var client = _storageServiceCollection.TryGetService(typeof(DropboxStorageService)) as DropboxStorageService;
@@ -179,7 +216,7 @@ public class OrderService : IDatabaseModelService<Order>
 
                 if (dropboxFolderExists.IsT1)
                     return dropboxFolderExists.AsT1;
-                
+
                 if (dropboxFolderExists.AsT0 == false)
                 {
                     var creationResult = client.CreateFolderAsync(dropboxOrderPath).Result;
@@ -229,7 +266,7 @@ public class OrderService : IDatabaseModelService<Order>
 
                 if (userOrError.IsT1)
                     return userOrError.AsT1;
-                
+
                 User user = userOrError.AsT0;
 
                 var client = _storageServiceCollection.TryGetService(typeof(DropboxStorageService)) as DropboxStorageService;
@@ -243,7 +280,7 @@ public class OrderService : IDatabaseModelService<Order>
 
                 if (dropboxFolderExists.IsT1)
                     return dropboxFolderExists.AsT1;
-                
+
                 if (dropboxFolderExists.AsT0 == true)
                 {
                     var deleteResult = client.DeleteAsync(dropboxOrderPath).Result;
@@ -286,7 +323,7 @@ public class OrderService : IDatabaseModelService<Order>
 
             if (oldUserOrError.IsT1)
                 return oldUserOrError.AsT1;
-            
+
             User oldUser = oldUserOrError.AsT0;
             Order oldOrder = (Order)dbOrder.Clone();
 
@@ -301,7 +338,7 @@ public class OrderService : IDatabaseModelService<Order>
 
                 if (newUserOrError.IsT1)
                     return newUserOrError.AsT1;
-                
+
                 User newUser = newUserOrError.AsT0;
                 Order newOrder = entry.Entity;
 
@@ -313,17 +350,23 @@ public class OrderService : IDatabaseModelService<Order>
                 string dropboxOldOrderPath = $"{oldUser.Email}/{oldOrder.Name + '_' + oldOrder.ProductType.ToString() + '_' + oldOrder.CreationDate.ToString()}";
                 string dropboxNewOrderPath = $"{newUser.Email}/{newOrder.Name + '_' + newOrder.ProductType.ToString() + '_' + newOrder.CreationDate.ToString()}";
 
-                var dropboxFolderExists = client.ExistsAsync(dropboxOldOrderPath).Result;
-
-                if (dropboxFolderExists.IsT1)
-                    return dropboxFolderExists.AsT1;
-                
-                if (dropboxFolderExists.AsT0 == true)
+                /// Если пути совпадают, то изменены данные, которые не участвуют в формировании имени файла на Dropbox
+                /// значит не надо переносить файлы на Dropbox
+                if (dropboxOldOrderPath != dropboxNewOrderPath)
                 {
-                    var moveResult = client.MoveAsync(dropboxOldOrderPath, dropboxNewOrderPath).Result;
-                    if (moveResult.IsT1)
-                        return moveResult.AsT1;
+                    var dropboxFolderExists = client.ExistsAsync(dropboxOldOrderPath).Result;
+
+                    if (dropboxFolderExists.IsT1)
+                        return dropboxFolderExists.AsT1;
+
+                    if (dropboxFolderExists.AsT0 == true)
+                    {
+                        var moveResult = client.MoveAsync(dropboxOldOrderPath, dropboxNewOrderPath).Result;
+                        if (moveResult.IsT1)
+                            return moveResult.AsT1;
+                    }
                 }
+
             }
             /// FIXME: (FIXED) Он должен фиксировать изменение как модификацию а не как удаление или отсоединение
             /// Если здесь Deleted, то запись удаляется
@@ -348,5 +391,42 @@ public class OrderService : IDatabaseModelService<Order>
         {
             return new ErrorInfo(Codes.NotFound, $"System.Exception: {ex.Message}");
         }
+    }
+
+    public async Task<OneOf<DropboxFileInfo, ErrorInfo>> DeleteOrderFileAsync(DropboxFileInfo orderFileInfo)
+    {
+        var client = _storageServiceCollection.TryGetService(typeof(DropboxStorageService)) as DropboxStorageService;
+
+        if (client is null)
+            return new ErrorInfo(Codes.NotFound, "Невозможно получить клиент хранилища без него файлы заказа не могут быть удалены!");
+
+        var deleteResultOrError = await client.DeleteAsync(orderFileInfo);
+
+        if (deleteResultOrError.IsT1)
+            return deleteResultOrError.AsT1;
+
+        return orderFileInfo;
+    }
+
+    public async Task<OneOf<List<Dropbox.Api.Files.Metadata>, ErrorInfo>> AddOrderFilesAsync(IFormCollection files, string orderName, string email)
+    {
+        List<Dropbox.Api.Files.Metadata> addedFilesMetadata = new List<Dropbox.Api.Files.Metadata>();
+        var client = _storageServiceCollection.TryGetService(typeof(DropboxStorageService)) as DropboxStorageService;
+
+        if (client is null)
+            return new ErrorInfo(Codes.NotFound, "Невозможно получить клиент хранилища без него файлы заказа не могут быть удалены!");
+
+        foreach (var file in files.Files)
+        {
+            var name = file.FileName;
+            var uploadResult = await client.UploadFileAsync($"{email}/{orderName}", name, file.OpenReadStream());
+
+            if (uploadResult.IsT1)
+                return uploadResult.AsT1;
+
+            addedFilesMetadata.Add((Dropbox.Api.Files.Metadata)uploadResult.AsT0);
+        };
+
+        return addedFilesMetadata;
     }
 }

@@ -55,7 +55,20 @@ public class DropboxStorageService : IStorageService
         try
         {
             DeleteResult deleteResult = await _dropboxClient.Files.DeleteV2Async($"{BASE_ORDERS_DROPBOX_PATH}/{path}");
-            return deleteResult;
+            return deleteResult.Metadata;
+        }
+        catch (Exception ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"Ошибка DropboxAPI: {ex.Message}");
+        }
+    }
+
+    public async Task<OneOf<object, ErrorInfo>> DeleteAsync(DropboxFileInfo dfi)
+    {
+        try
+        {
+            DeleteResult deleteResult = await _dropboxClient.Files.DeleteV2Async(dfi.DropboxPath);
+            return deleteResult.Metadata;
         }
         catch (Exception ex)
         {
@@ -133,6 +146,41 @@ public class DropboxStorageService : IStorageService
                 result.CopyTo(fs);
             }
             return null;
+        }
+    }
+
+    public async Task<OneOf<List<Metadata>, ErrorInfo>> GetFilesAsync(string email, string orderName)
+    {
+        try
+        {
+            ListFolderResult listFolderResult = await _dropboxClient.Files.ListFolderAsync(
+                new ListFolderArg(
+                    path: $"{BASE_ORDERS_DROPBOX_PATH}/{email}/{orderName}"
+                )
+            );
+
+            return listFolderResult.Entries.ToList();
+        }
+        catch (Exception ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"Ошибка DropboxAPI: {ex.Message}");
+        }
+    }
+
+    public async Task<OneOf<GetTemporaryLinkResult, ErrorInfo>> GetDownloadLinkAsync(string path)
+    {
+        try
+        {
+            GetTemporaryLinkResult temporaryLinkResult = await _dropboxClient.Files.GetTemporaryLinkAsync(
+                new GetTemporaryLinkArg(
+                    path: path
+                )
+            );
+            return temporaryLinkResult;
+        }
+        catch (Exception ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"Ошибка DropboxAPI: {ex.Message}");
         }
     }
 }

@@ -66,6 +66,7 @@ public class OrderService : IDatabaseModelService<Order>
         Order order = new Order()
         {
             Client = orderClient,
+            ClientId = orderClient.Id,
             Name = orderNameSplitted[1],
             ProductType = productType,
             CreationDate = DateOnly.FromDateTime(DateTime.Now),
@@ -83,6 +84,11 @@ public class OrderService : IDatabaseModelService<Order>
         /// (БД:Записи НЕТ, Dropbox:Записи НЕТ)
         if (addResult.IsT1)
         {
+            /// Случай, когда ошибка бросается не из-за рассинхрона БД и хранилища, а когда в бд найден дубликат
+            /// добавляемого заказа, дубликат удалять не надо, надо просто не добавлять новый! (выходим до удаления файла с хранилища)
+            // if (addResult.AsT1.StatusCode == Codes.BadRequest)
+            //     return addResult;
+
             var deleteResult = await client.DeleteAsync($"{orderNameSplitted[0]}/{orderNameSplitted[1] + '_' + orderNameSplitted[2] + '_' + orderNameSplitted[3]}");
             return addResult.AsT1;
         }
@@ -93,6 +99,8 @@ public class OrderService : IDatabaseModelService<Order>
 
     public async Task<OneOf<Order, ErrorInfo>> DeleteOrder(string orderName, string email)
     {
+        try
+        {
         User? orderClient = _db.Users.FirstOrDefault(
             user => user.Email == email
         );
@@ -126,6 +134,19 @@ public class OrderService : IDatabaseModelService<Order>
         }
 
         return new ErrorInfo(Codes.NotFound, "Заказ не был удален, возможно он был удален раннее");
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"DbUpdateConcurrencyException: {ex.InnerException?.Message}");
+        }
+        catch (DbUpdateException ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"DbUpdateException: {ex.InnerException?.Message}");
+        }
+        catch (Exception ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"System.Exception: {ex.Message}");
+        }
     }
 
     public async Task<OneOf<List<DropboxFileInfo>, ErrorInfo>> GetOrderFilesAsync(string email, string orderName)
@@ -194,6 +215,11 @@ public class OrderService : IDatabaseModelService<Order>
     {
         try
         {
+            var exists = _db.Orders.Any(existingOrder => existingOrder.Name == order.Name && existingOrder.ClientId == order.ClientId);
+
+            if (exists)
+                return new ErrorInfo(Codes.BadRequest, "Невозможно добавить заказ в БД, у вас уже существует заказ с таким именем, оно должно быть уникальным!!");
+
             var entry = _db.Orders.Add(order);
 
             if (additionalArgs is not null)

@@ -44,7 +44,16 @@ builder.Services.AddSqlite<SQLiteContext>(builder.Configuration.GetConnectionStr
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<DatabaseService>();
 builder.Services.AddScoped<OrderService>();
+builder.Services.AddScoped<YooKassaPaymentService>(provider => new YooKassaPaymentService(builder.Configuration, provider.GetRequiredService<OrderService>(), provider.GetRequiredService<SQLiteContext>()));
 builder.Services.AddSingleton<StorageServiceCollection>(new StorageServiceCollection());
+
+// builder.Services.AddSingleton<YooKassaPaymentService>(x => 
+//     new YooKassaPaymentService(builder.Configuration,
+//     x.GetRequiredService<OrderService>(),
+//     x.GetRequiredService<SQLiteContext>()));
+
+// builder.Services.AddSingleton<YooKassaPaymentService>(new YooKassaPaymentService(builder.Configuration,
+//         builder.Services.Where(desc => desc.ImplementationType == typeof(OrderService)).ToList()[0].ImplementationInstance as OrderService));
 
 var storageServiceCollection = builder.Services.FirstOrDefault(desc => desc.ServiceType == typeof(StorageServiceCollection))?.ImplementationInstance as StorageServiceCollection;
 

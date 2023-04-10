@@ -14,11 +14,13 @@ public class OrderController : ControllerBase
 
     private readonly ILogger<OrderController> _logger;
     private readonly OrderService _orderService;
+    private readonly YooKassaPaymentService _paymentService;
 
-    public OrderController(ILogger<OrderController> logger, OrderService orderService)
+    public OrderController(ILogger<OrderController> logger, OrderService orderService, YooKassaPaymentService paymentService)
     {
         _logger = logger;
         _orderService = orderService;
+        _paymentService = paymentService;
     }
 
     [HttpGet()]
@@ -54,7 +56,6 @@ public class OrderController : ControllerBase
     [Authorize()]
     public IResult AddOrderFile([FromForm()] IFormCollection form, [FromQuery()] string email, [FromQuery()] string orderName)
     {
-        /// FIXME: (FIXED) Получать ссылки на файлы заказа на основе данных, полученных в JWT токене (email)
         var userEmailClaim = User.FindFirst(claim => claim.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress");
 
         if (userEmailClaim.Value != email)

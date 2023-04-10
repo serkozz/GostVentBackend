@@ -34,7 +34,7 @@ public class DropboxStorageService : IStorageService
         {
             FileMetadata uploadRes = await _dropboxClient.Files.UploadAsync($"{BASE_ORDERS_DROPBOX_PATH}/{dropboxFolderName}/{dropboxFileName}",
             WriteMode.Add.Instance,
-            autorename: true,
+            autorename: false,
             clientModified: null,
             mute: false,
             propertyGroups: null,
@@ -104,7 +104,7 @@ public class DropboxStorageService : IStorageService
                     fromPath: $"{BASE_ORDERS_DROPBOX_PATH}/{oldPath}",
                     toPath: $"{BASE_ORDERS_DROPBOX_PATH}/{newPath}",
                     false,
-                    autorename: true,
+                    autorename: false,
                     allowOwnershipTransfer: false
                 )
             );

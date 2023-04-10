@@ -6,6 +6,7 @@ public class SQLiteContext : DbContext
 {
     public DbSet<User> Users { get; set; }
     public DbSet<Order> Orders { get; set; }
+    public DbSet<OrderPayment> OrderPayments { get; set; }
 
     public SQLiteContext(DbContextOptions<SQLiteContext> options) : base(options) { }
 

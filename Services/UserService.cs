@@ -80,18 +80,33 @@ public class UserService : IDatabaseModelService<User>
     /// <returns></returns>
     public OneOf<User, ErrorInfo> RegisterUser(User user)
     {
-        if (CheckEmailExist(user.Email))
-            return new ErrorInfo(Codes.NotFound, $"Пользователь с такой почтой уже зарегистрирован");
-        if (CheckUsernameExist(user.Username))
-            return new ErrorInfo(Codes.NotFound, $"Пользователь с таким никнеймом уже зарегистрирован");
-        var passwordStrengthResult = Utility.CheckPasswordStrength(user.Password);
-        if (!string.IsNullOrEmpty(passwordStrengthResult))
-            return new ErrorInfo(Codes.NotFound, $"Cлабый пароль:\n{passwordStrengthResult}");
-        user.Password = PasswordUtility.HashPassword(user.Password);
-        user.Role = "User";
-        var entry = _db.Users.Add(user);
-        _db.SaveChanges();
-        return entry.Entity;
+        try
+        {
+            if (CheckEmailExist(user.Email))
+                return new ErrorInfo(Codes.NotFound, $"Пользователь с такой почтой уже зарегистрирован");
+            if (CheckUsernameExist(user.Username))
+                return new ErrorInfo(Codes.NotFound, $"Пользователь с таким никнеймом уже зарегистрирован");
+            var passwordStrengthResult = Utility.CheckPasswordStrength(user.Password);
+            if (!string.IsNullOrEmpty(passwordStrengthResult))
+                return new ErrorInfo(Codes.NotFound, $"Cлабый пароль:\n{passwordStrengthResult}");
+            user.Password = PasswordUtility.HashPassword(user.Password);
+            user.Role = "User";
+            var entry = _db.Users.Add(user);
+            _db.SaveChanges();
+            return entry.Entity;
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"DbUpdateConcurrencyException: {ex.InnerException?.Message}");
+        }
+        catch (DbUpdateException ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"DbUpdateException: {ex.InnerException?.Message}");
+        }
+        catch (Exception ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"System.Exception: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -117,14 +132,29 @@ public class UserService : IDatabaseModelService<User>
     /// <returns></returns>
     public OneOf<User, ErrorInfo> SetUserRole(string username, string role)
     {
-        if (!CheckUsernameExist(username))
-            return new ErrorInfo(Codes.NotFound, $"Невозможно установить роль для незарегистрированного пользователя");
-        User? user = _db.Users.Where(user => user.Username == username).FirstOrDefault();
-        if (user is null)
-            return new ErrorInfo(Codes.NotFound, $"Несуществующий пользователь");
-        user.Role = role;
-        _db.SaveChanges();
-        return user;
+        try
+        {
+            if (!CheckUsernameExist(username))
+                return new ErrorInfo(Codes.NotFound, $"Невозможно установить роль для незарегистрированного пользователя");
+            User? user = _db.Users.Where(user => user.Username == username).FirstOrDefault();
+            if (user is null)
+                return new ErrorInfo(Codes.NotFound, $"Несуществующий пользователь");
+            user.Role = role;
+            _db.SaveChanges();
+            return user;
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"DbUpdateConcurrencyException: {ex.InnerException?.Message}");
+        }
+        catch (DbUpdateException ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"DbUpdateException: {ex.InnerException?.Message}");
+        }
+        catch (Exception ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"System.Exception: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -159,7 +189,7 @@ public class UserService : IDatabaseModelService<User>
     /// <param name="username"></param>
     /// <returns></returns>
     private bool CheckUsernameExist(string username) => _db.Users.Any(user => user.Username == username);
-    
+
     /// <summary>
     /// Существует ли такой Email в базе БД
     /// </summary>

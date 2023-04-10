@@ -18,6 +18,7 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="OneOf" Version="3.0.243" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
+    <!-- <PackageReference Include="Yandex.Checkout.V3" Version="1.7.0" /> -->
   </ItemGroup>
 
 </Project>

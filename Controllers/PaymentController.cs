@@ -37,13 +37,12 @@ public class PaymentController : ControllerBase
             order => order.Name == orderName
         ).ToList()[0];
 
-        Console.WriteLine(Request.Method + Request.ContentType);
-        var orderPaymentInfo = await _paymentService.GetOrderPaymentInfo(orderName, email);
-        var result = orderPaymentInfo.Match(
-            paymentInfo => Results.Ok(paymentInfo),
+        var res = await _paymentService.GetPaymentByOrderData(orderName, email);
+
+        return res.Match(
+            payment => Results.Ok(payment),
             error => Results.NotFound(error)
         );
-        return result;
     }
 
     [HttpPost()]

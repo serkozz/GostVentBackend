@@ -3,7 +3,6 @@ using Types.Classes;
 using System.Text;
 using EF.Models;
 using Codes = System.Net.HttpStatusCode;
-using YooKassaPaymentResponseNamespace;
 using YooKassaPaymentInfoNamespace;
 using EF.Contexts;
 using Microsoft.EntityFrameworkCore;
@@ -29,7 +28,7 @@ public class YooKassaPaymentService
     /// Создает платеж YooKassa используя API
     /// </summary>
     /// <param name="amount"></param>
-    public async Task<OneOf<YooKassaPaymentResponse, ErrorInfo>> CreatePaymentUsingAPI(Order order, string email, string returnUrl)
+    public async Task<OneOf<YooKassaPaymentInfo, ErrorInfo>> CreatePaymentUsingAPI(Order order, string email, string returnUrl)
     {
         try
         {
@@ -55,7 +54,7 @@ public class YooKassaPaymentService
                     return new ErrorInfo(response.StatusCode, response.ReasonPhrase is not null ? response.ReasonPhrase : "YooKassaApiError, watch docs");
 
                 var result = await response.Content.ReadAsStringAsync();
-                YooKassaPaymentResponse paymentResponse = YooKassaPaymentResponse.FromJson(result);
+                YooKassaPaymentInfo paymentResponse = YooKassaPaymentInfo.FromJson(result);
 
 
                 var entityEntry = _db.OrderPayments.Add(new OrderPayment()
@@ -88,12 +87,12 @@ public class YooKassaPaymentService
         }
     }
 
-    public async Task<OneOf<YooKassaPaymentInfo, ErrorInfo>> GetOrderPaymentInfo(string orderName, string email)
+    public async Task<OneOf<YooKassaPaymentsCollection, ErrorInfo>> GetAllPayments()
     {
         using (HttpClient client = new HttpClient())
         {
             var request = new HttpRequestMessage();
-            request.RequestUri = new Uri("https://api.yookassa.ru/v3/payments");
+            request.RequestUri = new Uri("https://api.yookassa.ru/v3/payments/");
             request.Method = HttpMethod.Get;
 
             request.Headers.Add("Accept", "*/*");
@@ -104,9 +103,63 @@ public class YooKassaPaymentService
 
             var response = await client.SendAsync(request);
             var result = await response.Content.ReadAsStringAsync();
-            YooKassaPaymentResponse paymentResponse = YooKassaPaymentResponse.FromJson(result);
-            return new YooKassaPaymentInfo();
+            YooKassaPaymentsCollection payments = YooKassaPaymentsCollection.FromJson(result);
+
+            if (payments is null || payments.Items.Length == 0)
+                return new ErrorInfo(Codes.NotFound, "YooKassaApiError: Невозможно получить платежи!");
+
+            return payments;
         }
+    }
+
+    public async Task<OneOf<YooKassaPaymentInfo, ErrorInfo>> GetPaymentById(Guid paymentId)
+    {
+        var paymentsOrError = await GetAllPayments();
+        if (paymentsOrError.IsT1)
+            return paymentsOrError.AsT1;
+
+        YooKassaPaymentsCollection payments = paymentsOrError.AsT0;
+
+        YooKassaPaymentInfo payment = payments.Items.Where(
+            payment => payment.Id == paymentId
+        ).First();
+
+        if (payment is null)
+            return new ErrorInfo(Codes.NotFound, "YooKassaApiError: Невозможно получить платеж по Id!");
+        
+        return payment;
+    }
+
+    public async Task<OneOf<YooKassaPaymentInfo, ErrorInfo>> GetPaymentByOrderData(string orderName, string email)
+    {
+        var paymentsOrError = await GetAllPayments();
+        if (paymentsOrError.IsT1)
+            return paymentsOrError.AsT1;
+
+        YooKassaPaymentsCollection payments = paymentsOrError.AsT0;
+
+        var order = _orderService.GetOrdersByEmail(email).Where(
+            order => order.Name == orderName
+        ).FirstOrDefault();
+
+        if (order is null)
+            return new ErrorInfo(Codes.NotFound, "Невозможно получить заказ из таблицы заказов, без него нельзя получить информацию о статусе платежа");
+
+        var orderPayment = _db.OrderPayments.Where(
+            orderPayment => orderPayment.OrderId == order.Id
+        ).FirstOrDefault();
+
+        if (orderPayment is null)
+            return new ErrorInfo(Codes.NotFound, "Невозможно получить id платежа из таблицы платежей, без него нельзя получить информацию о статусе платежа");
+
+        YooKassaPaymentInfo payment = payments.Items.Where(
+            payment => payment.Id == orderPayment.PaymentId
+        ).First();
+
+        if (payment is null)
+            return new ErrorInfo(Codes.NotFound, "YooKassaApiError: Невозможно получить платеж по Id!");
+
+        return payment;
     }
 
     private string Base64Encode(string plainText)

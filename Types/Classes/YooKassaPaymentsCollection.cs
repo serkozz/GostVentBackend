@@ -6,6 +6,18 @@ namespace YooKassaPaymentInfoNamespace
     using Newtonsoft.Json;
     using Newtonsoft.Json.Converters;
 
+    public partial class YooKassaPaymentsCollection
+    {
+        [JsonProperty("type")]
+        public string Type { get; set; }
+
+        [JsonProperty("next_cursor")]
+        public Guid NextCursor { get; set; }
+
+        [JsonProperty("items")]
+        public YooKassaPaymentInfo[] Items { get; set; }
+    }
+
     public partial class YooKassaPaymentInfo
     {
         [JsonProperty("id")]
@@ -17,9 +29,6 @@ namespace YooKassaPaymentInfoNamespace
         [JsonProperty("amount")]
         public Amount Amount { get; set; }
 
-        [JsonProperty("income_amount")]
-        public Amount IncomeAmount { get; set; }
-
         [JsonProperty("description")]
         public string Description { get; set; }
 
@@ -29,17 +38,14 @@ namespace YooKassaPaymentInfoNamespace
         [JsonProperty("payment_method")]
         public PaymentMethod PaymentMethod { get; set; }
 
-        [JsonProperty("captured_at")]
-        public DateTimeOffset CapturedAt { get; set; }
-
         [JsonProperty("created_at")]
         public DateTimeOffset CreatedAt { get; set; }
 
+        [JsonProperty("expires_at", NullValueHandling = NullValueHandling.Ignore)]
+        public DateTimeOffset? ExpiresAt { get; set; }
+
         [JsonProperty("test")]
         public bool Test { get; set; }
-
-        [JsonProperty("refunded_amount")]
-        public Amount RefundedAmount { get; set; }
 
         [JsonProperty("paid")]
         public bool Paid { get; set; }
@@ -50,8 +56,23 @@ namespace YooKassaPaymentInfoNamespace
         [JsonProperty("metadata")]
         public Metadata Metadata { get; set; }
 
-        [JsonProperty("authorization_details")]
+        [JsonProperty("authorization_details", NullValueHandling = NullValueHandling.Ignore)]
         public AuthorizationDetails AuthorizationDetails { get; set; }
+
+        [JsonProperty("confirmation", NullValueHandling = NullValueHandling.Ignore)]
+        public Confirmation Confirmation { get; set; }
+
+        [JsonProperty("income_amount", NullValueHandling = NullValueHandling.Ignore)]
+        public Amount IncomeAmount { get; set; }
+
+        [JsonProperty("captured_at", NullValueHandling = NullValueHandling.Ignore)]
+        public DateTimeOffset? CapturedAt { get; set; }
+
+        [JsonProperty("refunded_amount", NullValueHandling = NullValueHandling.Ignore)]
+        public Amount RefundedAmount { get; set; }
+
+        [JsonProperty("cancellation_details", NullValueHandling = NullValueHandling.Ignore)]
+        public CancellationDetails CancellationDetails { get; set; }
     }
 
     public partial class Amount
@@ -60,7 +81,7 @@ namespace YooKassaPaymentInfoNamespace
         public string Value { get; set; }
 
         [JsonProperty("currency")]
-        public string Currency { get; set; }
+        public Currency Currency { get; set; }
     }
 
     public partial class AuthorizationDetails
@@ -88,6 +109,27 @@ namespace YooKassaPaymentInfoNamespace
         public bool ChallengeCompleted { get; set; }
     }
 
+    public partial class CancellationDetails
+    {
+        [JsonProperty("party")]
+        public string Party { get; set; }
+
+        [JsonProperty("reason")]
+        public string Reason { get; set; }
+    }
+
+    public partial class Confirmation
+    {
+        [JsonProperty("type")]
+        public string Type { get; set; }
+
+        [JsonProperty("return_url")]
+        public Uri ReturnUrl { get; set; }
+
+        [JsonProperty("confirmation_url")]
+        public Uri ConfirmationUrl { get; set; }
+    }
+
     public partial class Metadata
     {
     }
@@ -95,7 +137,7 @@ namespace YooKassaPaymentInfoNamespace
     public partial class PaymentMethod
     {
         [JsonProperty("type")]
-        public string Type { get; set; }
+        public TypeEnum Type { get; set; }
 
         [JsonProperty("id")]
         public Guid Id { get; set; }
@@ -103,10 +145,10 @@ namespace YooKassaPaymentInfoNamespace
         [JsonProperty("saved")]
         public bool Saved { get; set; }
 
-        [JsonProperty("title")]
+        [JsonProperty("title", NullValueHandling = NullValueHandling.Ignore)]
         public string Title { get; set; }
 
-        [JsonProperty("card")]
+        [JsonProperty("card", NullValueHandling = NullValueHandling.Ignore)]
         public Card Card { get; set; }
     }
 
@@ -146,6 +188,15 @@ namespace YooKassaPaymentInfoNamespace
         public long GatewayId { get; set; }
     }
 
+    public enum Currency { Rub };
+
+    public enum TypeEnum { BankCard };
+
+    public partial class YooKassaPaymentsCollection
+    {
+        public static YooKassaPaymentsCollection FromJson(string json) => JsonConvert.DeserializeObject<YooKassaPaymentsCollection>(json, YooKassaPaymentInfoNamespace.Converter.Settings);
+    }
+
     public partial class YooKassaPaymentInfo
     {
         public static YooKassaPaymentInfo FromJson(string json) => JsonConvert.DeserializeObject<YooKassaPaymentInfo>(json, YooKassaPaymentInfoNamespace.Converter.Settings);
@@ -153,7 +204,7 @@ namespace YooKassaPaymentInfoNamespace
 
     public static class Serialize
     {
-        public static string ToJson(this YooKassaPaymentInfo self) => JsonConvert.SerializeObject(self, YooKassaPaymentInfoNamespace.Converter.Settings);
+        public static string ToJson(this YooKassaPaymentsCollection self) => JsonConvert.SerializeObject(self, YooKassaPaymentInfoNamespace.Converter.Settings);
     }
 
     internal static class Converter
@@ -163,9 +214,45 @@ namespace YooKassaPaymentInfoNamespace
             MetadataPropertyHandling = MetadataPropertyHandling.Ignore,
             DateParseHandling = DateParseHandling.None,
             Converters = {
+                CurrencyConverter.Singleton,
+                TypeEnumConverter.Singleton,
                 new IsoDateTimeConverter { DateTimeStyles = DateTimeStyles.AssumeUniversal }
             },
         };
+    }
+
+    internal class CurrencyConverter : JsonConverter
+    {
+        public override bool CanConvert(Type t) => t == typeof(Currency) || t == typeof(Currency?);
+
+        public override object ReadJson(JsonReader reader, Type t, object existingValue, JsonSerializer serializer)
+        {
+            if (reader.TokenType == JsonToken.Null) return null;
+            var value = serializer.Deserialize<string>(reader);
+            if (value == "RUB")
+            {
+                return Currency.Rub;
+            }
+            throw new Exception("Cannot unmarshal type Currency");
+        }
+
+        public override void WriteJson(JsonWriter writer, object untypedValue, JsonSerializer serializer)
+        {
+            if (untypedValue == null)
+            {
+                serializer.Serialize(writer, null);
+                return;
+            }
+            var value = (Currency)untypedValue;
+            if (value == Currency.Rub)
+            {
+                serializer.Serialize(writer, "RUB");
+                return;
+            }
+            throw new Exception("Cannot marshal type Currency");
+        }
+
+        public static readonly CurrencyConverter Singleton = new CurrencyConverter();
     }
 
     internal class ParseStringConverter : JsonConverter
@@ -197,5 +284,39 @@ namespace YooKassaPaymentInfoNamespace
         }
 
         public static readonly ParseStringConverter Singleton = new ParseStringConverter();
+    }
+
+    internal class TypeEnumConverter : JsonConverter
+    {
+        public override bool CanConvert(Type t) => t == typeof(TypeEnum) || t == typeof(TypeEnum?);
+
+        public override object ReadJson(JsonReader reader, Type t, object existingValue, JsonSerializer serializer)
+        {
+            if (reader.TokenType == JsonToken.Null) return null;
+            var value = serializer.Deserialize<string>(reader);
+            if (value == "bank_card")
+            {
+                return TypeEnum.BankCard;
+            }
+            throw new Exception("Cannot unmarshal type TypeEnum");
+        }
+
+        public override void WriteJson(JsonWriter writer, object untypedValue, JsonSerializer serializer)
+        {
+            if (untypedValue == null)
+            {
+                serializer.Serialize(writer, null);
+                return;
+            }
+            var value = (TypeEnum)untypedValue;
+            if (value == TypeEnum.BankCard)
+            {
+                serializer.Serialize(writer, "bank_card");
+                return;
+            }
+            throw new Exception("Cannot marshal type TypeEnum");
+        }
+
+        public static readonly TypeEnumConverter Singleton = new TypeEnumConverter();
     }
 }

@@ -122,4 +122,40 @@ public class OrderController : ControllerBase
         );
     }
 
+    [HttpGet()]
+    [Route("/order/rating/{email?}/{orderName?}")]
+    [Authorize()]
+    public IResult GetOrderRating([FromQuery()] string email, [FromQuery()] string orderName)
+    {
+        /// FIXME: (FIXED) Удалять заказ на основе данных, полученных в JWT токене (email)
+        var userEmailClaim = User.FindFirst(claim => claim.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress");
+
+        if (userEmailClaim.Value != email)
+            return Results.NotFound(new ErrorInfo(Codes.NotFound, $"Email: {userEmailClaim.Value} авторизованного пользователя не совпадает с Email: {email} запрашиваемого"));
+
+        return _orderService.GetRating(orderName, email).Result.Match(
+            orderRating => Results.Ok(orderRating),
+            error => Results.NotFound(error)
+        );
+    }
+
+    [HttpPost()]
+    [Route("/order/rate/{email?}/{orderName?}")]
+    [Authorize()]
+    public IResult RateOrder([FromQuery()] string email, [FromQuery()] string orderName, [FromQuery()] int rating)
+    {
+        /// FIXME: (FIXED) Удалять заказ на основе данных, полученных в JWT токене (email)
+        var userEmailClaim = User.FindFirst(claim => claim.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress");
+
+        if (userEmailClaim.Value != email)
+            return Results.NotFound(new ErrorInfo(Codes.NotFound, $"Email: {userEmailClaim.Value} авторизованного пользователя не совпадает с Email: {email} запрашиваемого. Нельзя оценивать не свои заказы!"));
+
+        if (rating > 5 || rating <= 0 )
+            return Results.NotFound(new ErrorInfo(Codes.NotFound, "Рейтинг заказа не может быть выше 5 и меньше или равен 0"));
+
+        return _orderService.RateOrder(orderName, email, rating).Result.Match(
+            orderRating => Results.Ok(orderRating),
+            error => Results.NotFound(error)
+        );
+    }
 }

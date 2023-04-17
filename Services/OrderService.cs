@@ -101,39 +101,39 @@ public class OrderService : IDatabaseModelService<Order>
     {
         try
         {
-        User? orderClient = _db.Users.FirstOrDefault(
-            user => user.Email == email
-        );
+            User? orderClient = _db.Users.FirstOrDefault(
+                user => user.Email == email
+            );
 
-        if (orderClient is null)
-            return new ErrorInfo(Codes.NotFound, "Невозможно получить клиента заказа, без него заказ не может быть удален!");
+            if (orderClient is null)
+                return new ErrorInfo(Codes.NotFound, "Невозможно получить клиента заказа, без него заказ не может быть удален!");
 
-        Order? order = _db.Orders.FirstOrDefault(
-            order => order.Name == orderName && order.ClientId == orderClient.Id
-        );
+            Order? order = _db.Orders.FirstOrDefault(
+                order => order.Name == orderName && order.ClientId == orderClient.Id
+            );
 
-        if (order is null)
-            return new ErrorInfo(Codes.NotFound, "Невозможно получить удаляемый заказ по его имени!");
+            if (order is null)
+                return new ErrorInfo(Codes.NotFound, "Невозможно получить удаляемый заказ по его имени!");
 
-        var removedEntityEntry = _db.Orders.Remove(order);
-        var client = _storageServiceCollection.TryGetService(typeof(DropboxStorageService)) as DropboxStorageService;
+            var removedEntityEntry = _db.Orders.Remove(order);
+            var client = _storageServiceCollection.TryGetService(typeof(DropboxStorageService)) as DropboxStorageService;
 
-        if (client is null)
-            return new ErrorInfo(Codes.NotFound, "Невозможно получить клиент хранилища без него заказ не может быть удален!");
+            if (client is null)
+                return new ErrorInfo(Codes.NotFound, "Невозможно получить клиент хранилища без него заказ не может быть удален!");
 
-        if (removedEntityEntry.State == EntityState.Deleted)
-        {
-            string dropboxOrderPath = $"{orderClient.Email}/{order.Name + '_' + order.ProductType.ToString() + '_' + order.CreationDate.ToString()}";
-            var deleteResult = await client.DeleteAsync(dropboxOrderPath);
-            if (deleteResult.IsT0)
+            if (removedEntityEntry.State == EntityState.Deleted)
             {
-                _db.SaveChanges();
-                return removedEntityEntry.Entity;
+                string dropboxOrderPath = $"{orderClient.Email}/{order.Name + '_' + order.ProductType.ToString() + '_' + order.CreationDate.ToString()}";
+                var deleteResult = await client.DeleteAsync(dropboxOrderPath);
+                if (deleteResult.IsT0)
+                {
+                    _db.SaveChanges();
+                    return removedEntityEntry.Entity;
+                }
+                return deleteResult.AsT1;
             }
-            return deleteResult.AsT1;
-        }
 
-        return new ErrorInfo(Codes.NotFound, "Заказ не был удален, возможно он был удален раннее");
+            return new ErrorInfo(Codes.NotFound, "Заказ не был удален, возможно он был удален раннее");
         }
         catch (DbUpdateConcurrencyException ex)
         {
@@ -169,9 +169,9 @@ public class OrderService : IDatabaseModelService<Order>
             var linkResultOrError = await client.GetDownloadLinkAsync(metadata.PathLower);
             if (linkResultOrError.IsT1)
                 return linkResultOrError.AsT1;
-            
+
             var linkResult = linkResultOrError.AsT0;
-            
+
             DropboxFileInfo dfi = new DropboxFileInfo()
             {
                 Name = linkResult.Metadata.Name,
@@ -454,5 +454,84 @@ public class OrderService : IDatabaseModelService<Order>
         };
 
         return addedFilesMetadata;
+    }
+
+    public async Task<OneOf<int, ErrorInfo>> RateOrder(string orderName, string email, int rating)
+    {
+        try
+        {
+            Order? ratableOrder = GetOrdersByEmail(email).Where(order => order.Name == orderName).FirstOrDefault();
+
+            if (ratableOrder is null)
+                return new ErrorInfo(Codes.NotFound, "Невозможно получить оцениваемый заказ");
+
+            OrderRating? orderRating = _db.OrderRating.Where(orderRating => orderRating.OrderId == ratableOrder.Id).FirstOrDefault();
+
+            if (orderRating is null)
+            {
+                var entry = _db.OrderRating.Add(new OrderRating()
+                {
+                    Order = ratableOrder,
+                    OrderId = ratableOrder.Id,
+                    Rating = rating
+                });
+
+                if (entry.State == EntityState.Added)
+                {
+                    _db.SaveChanges();
+                    return entry.Entity.Rating;
+                }
+
+                return new ErrorInfo(Codes.NotFound, "Невозможно установить рейтинг заказа, проблема c подключением к базе данных");
+            }
+            else
+            {
+                var entry = _db.Entry(orderRating);
+                entry.State = EntityState.Unchanged;
+                orderRating.Rating = rating;
+                entry.State = EntityState.Modified;
+
+                if (entry.State == EntityState.Modified)
+                {
+                    _db.SaveChanges();
+                    return entry.Entity.Rating;
+                }
+            }
+            return new ErrorInfo(Codes.NotFound, "Невозможно установить рейтинг заказа, проблема c подключением к базе данных");
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"DbUpdateConcurrencyException: {ex.InnerException?.Message}");
+        }
+        catch (DbUpdateException ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"DbUpdateException: {ex.InnerException?.Message}");
+        }
+        catch (Exception ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"System.Exception: {ex.Message}");
+        }
+    }
+
+    public async Task<OneOf<int, ErrorInfo>> GetRating(string orderName, string email)
+    {
+        try
+        {
+            Order? ratableOrder = GetOrdersByEmail(email).Where(order => order.Name == orderName).FirstOrDefault();
+
+            if (ratableOrder is null)
+                return new ErrorInfo(Codes.NotFound, "Невозможно получить рейтинг заказа");
+
+            OrderRating? orderRating = _db.OrderRating.Where(orderRating => orderRating.OrderId == ratableOrder.Id).FirstOrDefault();
+
+            if (orderRating is null)
+                return 0;
+            else
+                return orderRating.Rating;
+        }
+        catch (Exception ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"System.Exception: {ex.Message}");
+        }
     }
 }

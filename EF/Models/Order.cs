@@ -10,6 +10,7 @@ public partial class Order : IDynamicallySettable, ICloneable
 {
     [Key]
     public long Id { get; set; }
+    [MaxLength(200)]
     public string Name { get; set; }
     public ProductType ProductType { get; set; }
     public DateOnly CreationDate { get; set; }

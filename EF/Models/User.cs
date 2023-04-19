@@ -9,10 +9,13 @@ public partial class User : IDynamicallySettable
 {
     [Key]
     public long Id { get; set; }
+    [MaxLength(50)]
     public string Username { get; set; } = null!;
+    [MaxLength(254)]
     public string Email { get; set; } = null!;
     public string Password { get; set; } = null!;
     public string? Token { get; set; }
+    [MaxLength(20)]
     public string? Role { get; set; }
 
     public User() { }

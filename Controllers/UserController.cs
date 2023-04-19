@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using EF.Models;
 using Microsoft.AspNetCore.Authorization;
 using Services;
+using Types.Classes;
+using Codes = System.Net.HttpStatusCode;
 
 namespace Backend.Controllers;
 
@@ -72,6 +74,27 @@ public class UserController : ControllerBase
     {
         var result = _userService.RegisterUser(user).Match(
             user => Results.Ok(user),
+            error => Results.NotFound(error)
+        );
+        return result;
+    }
+
+    /// <summary>
+    /// Производит смену пароля пользователя
+    /// </summary>
+    [HttpPost(Name = "PostUserDataToRegister")]
+    [Route("/user/password/change")]
+    // [Authorize()]
+    public IResult ChangePassword([FromBody()] PasswordChangeInfo pci)
+    {
+        // /// TODO: ВОССТАНОВЛЕНИЕ ПАРОЛЯ ПО ССЫЛКЕ
+        // var userEmailClaim = User.FindFirst(claim => claim.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress");
+
+        // if (userEmailClaim.Value != pci.Email)
+        //     return Results.NotFound(new ErrorInfo(Codes.NotFound, $"Email: {userEmailClaim.Value} авторизованного пользователя не совпадает с Email: {pci.Email} запрашиваемого"));
+
+        var result = _userService.ChangePassword(pci.Email, pci.OldPassword, pci.NewPassword, pci.NewPasswordRepeated).Match(
+            password => Results.Ok(password),
             error => Results.NotFound(error)
         );
         return result;

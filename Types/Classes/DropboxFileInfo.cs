@@ -7,6 +7,4 @@ public class DropboxFileInfo
     public ulong FileSize { get; set; }
     public string Link { get; set; }
     public string DropboxPath { get; set; }
-    
-    
 }

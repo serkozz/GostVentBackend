@@ -456,7 +456,7 @@ public class OrderService : IDatabaseModelService<Order>
         return addedFilesMetadata;
     }
 
-    public async Task<OneOf<int, ErrorInfo>> RateOrder(string orderName, string email, int rating)
+    public OneOf<RatingSummary, ErrorInfo> RateOrder(string orderName, string email, RatingSummary ratingSummary)
     {
         try
         {
@@ -473,13 +473,14 @@ public class OrderService : IDatabaseModelService<Order>
                 {
                     Order = ratableOrder,
                     OrderId = ratableOrder.Id,
-                    Rating = rating
+                    Rating = ratingSummary.Rating,
+                    Review = ratingSummary.Review
                 });
 
                 if (entry.State == EntityState.Added)
                 {
                     _db.SaveChanges();
-                    return entry.Entity.Rating;
+                    return ratingSummary;
                 }
 
                 return new ErrorInfo(Codes.NotFound, "Невозможно установить рейтинг заказа, проблема c подключением к базе данных");
@@ -488,13 +489,14 @@ public class OrderService : IDatabaseModelService<Order>
             {
                 var entry = _db.Entry(orderRating);
                 entry.State = EntityState.Unchanged;
-                orderRating.Rating = rating;
+                orderRating.Rating = ratingSummary.Rating;
+                orderRating.Review = ratingSummary.Review;
                 entry.State = EntityState.Modified;
 
                 if (entry.State == EntityState.Modified)
                 {
                     _db.SaveChanges();
-                    return entry.Entity.Rating;
+                    return ratingSummary;
                 }
             }
             return new ErrorInfo(Codes.NotFound, "Невозможно установить рейтинг заказа, проблема c подключением к базе данных");
@@ -513,7 +515,7 @@ public class OrderService : IDatabaseModelService<Order>
         }
     }
 
-    public async Task<OneOf<int, ErrorInfo>> GetRating(string orderName, string email)
+    public OneOf<RatingSummary, ErrorInfo> GetRating(string orderName, string email)
     {
         try
         {
@@ -525,9 +527,9 @@ public class OrderService : IDatabaseModelService<Order>
             OrderRating? orderRating = _db.OrderRating.Where(orderRating => orderRating.OrderId == ratableOrder.Id).FirstOrDefault();
 
             if (orderRating is null)
-                return 0;
-            else
-                return orderRating.Rating;
+                return new RatingSummary(0, string.Empty);
+
+            return new RatingSummary(orderRating.Rating, orderRating.Review);
         }
         catch (Exception ex)
         {

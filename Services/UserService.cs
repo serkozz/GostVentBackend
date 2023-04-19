@@ -7,7 +7,6 @@ using Types.Classes;
 using Microsoft.IdentityModel.Tokens;
 using OneOf;
 using Types.Interfaces;
-using Utility = Types.Classes.Utility;
 using Codes = System.Net.HttpStatusCode;
 using Microsoft.EntityFrameworkCore;
 
@@ -86,7 +85,7 @@ public class UserService : IDatabaseModelService<User>
                 return new ErrorInfo(Codes.NotFound, $"Пользователь с такой почтой уже зарегистрирован");
             if (CheckUsernameExist(user.Username))
                 return new ErrorInfo(Codes.NotFound, $"Пользователь с таким никнеймом уже зарегистрирован");
-            var passwordStrengthResult = Utility.CheckPasswordStrength(user.Password);
+            var passwordStrengthResult = PasswordUtility.CheckPasswordStrength(user.Password);
             if (!string.IsNullOrEmpty(passwordStrengthResult))
                 return new ErrorInfo(Codes.NotFound, $"Cлабый пароль:\n{passwordStrengthResult}");
             user.Password = PasswordUtility.HashPassword(user.Password);
@@ -107,6 +106,37 @@ public class UserService : IDatabaseModelService<User>
         {
             return new ErrorInfo(Codes.NotFound, $"System.Exception: {ex.Message}");
         }
+    }
+
+    public OneOf<string, ErrorInfo> ChangePassword(string email, string oldPassword, string newPassword, string newPasswordRepeated)
+    {
+        User? user = GetUser(email);
+
+        if (user is null)
+            return new ErrorInfo(Codes.NotFound, "Невозможно получить пользователя для смены пароля");
+        
+        if (oldPassword == newPassword)
+            return new ErrorInfo(Codes.NotFound, "Старый и новый пароли совпадают");
+
+        bool oldPasswordCorrect = PasswordUtility.VerifyPassword(oldPassword, user.Password);
+
+        if (!oldPasswordCorrect)
+            return new ErrorInfo(Codes.NotFound, "Неверно введен старый пароль");
+        
+        if (newPassword != newPasswordRepeated)
+            return new ErrorInfo(Codes.NotFound, "Новый пароль неверно повторен");
+
+        var checkRes = PasswordUtility.CheckPasswordStrength(newPassword);
+
+        if (!string.IsNullOrEmpty(checkRes))
+            return new ErrorInfo(Codes.NotFound, $"Cлабый пароль:\n{checkRes}");
+
+        var entry = _db.Entry(user);
+        entry.State = EntityState.Unchanged;
+        user.Password = PasswordUtility.HashPassword(newPassword);
+        entry.State = EntityState.Modified;
+        _db.SaveChanges();
+        return user.Password;
     }
 
     /// <summary>

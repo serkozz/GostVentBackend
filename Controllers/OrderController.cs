@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Services;
 using Types.Classes;
 using Codes = System.Net.HttpStatusCode;
+using EF.Models;
 
 namespace Backend.Controllers;
 
@@ -133,7 +134,7 @@ public class OrderController : ControllerBase
         if (userEmailClaim.Value != email)
             return Results.NotFound(new ErrorInfo(Codes.NotFound, $"Email: {userEmailClaim.Value} авторизованного пользователя не совпадает с Email: {email} запрашиваемого"));
 
-        return _orderService.GetRating(orderName, email).Result.Match(
+        return _orderService.GetRating(orderName, email).Match(
             orderRating => Results.Ok(orderRating),
             error => Results.NotFound(error)
         );
@@ -141,19 +142,19 @@ public class OrderController : ControllerBase
 
     [HttpPost()]
     [Route("/order/rate/{email?}/{orderName?}")]
-    [Authorize()]
-    public IResult RateOrder([FromQuery()] string email, [FromQuery()] string orderName, [FromQuery()] int rating)
+    // [Authorize()]
+    public IResult RateOrder([FromQuery()] string email, [FromQuery()] string orderName, [FromBody()] RatingSummary orderRating)
     {
-        /// FIXME: (FIXED) Удалять заказ на основе данных, полученных в JWT токене (email)
-        var userEmailClaim = User.FindFirst(claim => claim.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress");
+        // /// FIXME: (FIXED) Удалять заказ на основе данных, полученных в JWT токене (email)
+        // var userEmailClaim = User.FindFirst(claim => claim.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress");
 
-        if (userEmailClaim.Value != email)
-            return Results.NotFound(new ErrorInfo(Codes.NotFound, $"Email: {userEmailClaim.Value} авторизованного пользователя не совпадает с Email: {email} запрашиваемого. Нельзя оценивать не свои заказы!"));
+        // if (userEmailClaim.Value != email)
+        //     return Results.NotFound(new ErrorInfo(Codes.NotFound, $"Email: {userEmailClaim.Value} авторизованного пользователя не совпадает с Email: {email} запрашиваемого. Нельзя оценивать не свои заказы!"));
 
-        if (rating > 5 || rating <= 0 )
+        if (orderRating.Rating > 5 || orderRating.Rating <= 0 )
             return Results.NotFound(new ErrorInfo(Codes.NotFound, "Рейтинг заказа не может быть выше 5 и меньше или равен 0"));
 
-        return _orderService.RateOrder(orderName, email, rating).Result.Match(
+        return _orderService.RateOrder(orderName, email, orderRating).Match(
             orderRating => Results.Ok(orderRating),
             error => Results.NotFound(error)
         );

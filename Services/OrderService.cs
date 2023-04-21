@@ -28,8 +28,6 @@ public class OrderService : IDatabaseModelService<Order>
     /// <returns></returns>
     public async Task<OneOf<Order, ErrorInfo>> CreateOrder(IFormCollection form, string orderName)
     {
-        /// TODO: Возможно стоит сначала создавать заказ, а потом уже добавлять файлы на дропбокс
-        /// ибо удалить запись из бд проще, чем из облачного хранилища в плане времени
         string[] orderNameSplitted = new string[4];
         orderNameSplitted = orderName.Split('_', 4);
         var client = _storageServiceCollection.TryGetService(typeof(DropboxStorageService)) as DropboxStorageService;
@@ -392,11 +390,7 @@ public class OrderService : IDatabaseModelService<Order>
                             return moveResult.AsT1;
                     }
                 }
-
             }
-            /// FIXME: (FIXED) Он должен фиксировать изменение как модификацию а не как удаление или отсоединение
-            /// Если здесь Deleted, то запись удаляется
-            /// Если тут Detached, то она не меняется в базе, но меняется ее имя на дропбоксе
             if (entry.State == EntityState.Modified)
             {
                 _db.SaveChanges();

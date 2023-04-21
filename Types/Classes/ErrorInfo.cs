@@ -18,10 +18,6 @@ namespace Types.Classes
             Details = details;
             Message = message;
         }
-        // public override string ToString()
-        // {
-        //     return JsonConvert.SerializeObject(this);
-        // }
     }
     public class ErrorInfo
     {
@@ -34,9 +30,5 @@ namespace Types.Classes
             Message = message;
             StatusName = StatusCode.ToString();
         }
-        // public override string ToString()
-        // {
-        //     return JsonConvert.SerializeObject(this);
-        // }
     }
 }

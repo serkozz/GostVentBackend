@@ -15,6 +15,10 @@ public class RatingSummary
     }
     public string Review { get; set; }
 
+    public RatingSummary()
+    {
+
+    }
     public RatingSummary(int rating, string review)
     {
         Rating = rating;

@@ -4,6 +4,7 @@ using EF.Contexts;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Types.Classes;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,6 +39,9 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+
 builder.Services.AddAuthorization();
 
 builder.Services.AddSqlite<SQLiteContext>(builder.Configuration.GetConnectionString("SQLite"));
@@ -46,6 +50,7 @@ builder.Services.AddScoped<DatabaseService>();
 builder.Services.AddScoped<OrderService>();
 builder.Services.AddScoped<YooKassaPaymentService>(provider => new YooKassaPaymentService(builder.Configuration, provider.GetRequiredService<OrderService>(), provider.GetRequiredService<SQLiteContext>()));
 builder.Services.AddSingleton<StorageServiceCollection>(new StorageServiceCollection());
+builder.Services.AddSingleton<MailService>(new MailService(builder.Configuration, builder.Services.First(descriptor => descriptor.ImplementationType == typeof(SQLiteContext)).ImplementationInstance as SQLiteContext));
 
 // builder.Services.AddSingleton<YooKassaPaymentService>(x => 
 //     new YooKassaPaymentService(builder.Configuration,
@@ -65,9 +70,6 @@ storageServiceCollection.TryAddService(new DropboxStorageService(builder.Configu
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
-builder.Logging.ClearProviders();
-builder.Logging.AddConsole();
 
 var app = builder.Build();
 

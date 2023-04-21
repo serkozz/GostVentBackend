@@ -29,7 +29,6 @@ public class OrderController : ControllerBase
     [Authorize()]
     public IResult GetOrderFiles([FromQuery()] string email, [FromQuery()] string orderName)
     {
-        /// FIXME: (FIXED) Получать ссылки на файлы заказа на основе данных, полученных в JWT токене (email)
         var userEmailClaim = User.FindFirst(claim => claim.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress");
 
         if (userEmailClaim.Value != email)
@@ -73,8 +72,6 @@ public class OrderController : ControllerBase
     [Authorize()]
     public IResult GetOrdersByEmail([FromQuery()] string email)
     {
-        /// FIXME: (FIXED) Пользователь может получить не только свои, но и чужие заказы
-        /// напрямую введя чужую почту
         var userEmailClaim = User.FindFirst(claim => claim.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress");
 
         if (userEmailClaim.Value != email)
@@ -97,8 +94,6 @@ public class OrderController : ControllerBase
     [Authorize()]
     public IResult CreateOrder([FromForm()] IFormCollection form, [FromQuery()] string orderName)
     {
-        /// FIXME: Создавать заказ на основе данных, полученных в JWT токене (email)
-        /// FIXME: Нельзя создавать два заказа с одинаковыми именами
         var userInfo = User;
         return _orderService.CreateOrder(form, orderName).Result.Match(
             order => Results.Ok(order),
@@ -111,7 +106,6 @@ public class OrderController : ControllerBase
     [Authorize()]
     public IResult DeleteOrder([FromQuery()] string email, [FromQuery()] string orderName)
     {
-        /// FIXME: (FIXED) Удалять заказ на основе данных, полученных в JWT токене (email)
         var userEmailClaim = User.FindFirst(claim => claim.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress");
 
         if (userEmailClaim.Value != email)
@@ -128,7 +122,6 @@ public class OrderController : ControllerBase
     [Authorize()]
     public IResult GetOrderRating([FromQuery()] string email, [FromQuery()] string orderName)
     {
-        /// FIXME: (FIXED) Удалять заказ на основе данных, полученных в JWT токене (email)
         var userEmailClaim = User.FindFirst(claim => claim.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress");
 
         if (userEmailClaim.Value != email)
@@ -142,14 +135,13 @@ public class OrderController : ControllerBase
 
     [HttpPost()]
     [Route("/order/rate/{email?}/{orderName?}")]
-    // [Authorize()]
+    [Authorize()]
     public IResult RateOrder([FromQuery()] string email, [FromQuery()] string orderName, [FromBody()] RatingSummary orderRating)
     {
-        // /// FIXME: (FIXED) Удалять заказ на основе данных, полученных в JWT токене (email)
-        // var userEmailClaim = User.FindFirst(claim => claim.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress");
+        var userEmailClaim = User.FindFirst(claim => claim.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress");
 
-        // if (userEmailClaim.Value != email)
-        //     return Results.NotFound(new ErrorInfo(Codes.NotFound, $"Email: {userEmailClaim.Value} авторизованного пользователя не совпадает с Email: {email} запрашиваемого. Нельзя оценивать не свои заказы!"));
+        if (userEmailClaim.Value != email)
+            return Results.NotFound(new ErrorInfo(Codes.NotFound, $"Email: {userEmailClaim.Value} авторизованного пользователя не совпадает с Email: {email} запрашиваемого. Нельзя оценивать не свои заказы!"));
 
         if (orderRating.Rating > 5 || orderRating.Rating <= 0 )
             return Results.NotFound(new ErrorInfo(Codes.NotFound, "Рейтинг заказа не может быть выше 5 и меньше или равен 0"));

@@ -9,14 +9,17 @@ using OneOf;
 using Types.Interfaces;
 using Codes = System.Net.HttpStatusCode;
 using Microsoft.EntityFrameworkCore;
+using Types.Enums;
 
 namespace Services;
 public class UserService : IDatabaseModelService<User>
 {
     private readonly SQLiteContext _db;
-    public UserService(SQLiteContext db)
+    private readonly StorageServiceCollection _storageService;
+    public UserService(SQLiteContext db, StorageServiceCollection storageServiceCollection)
     {
         _db = db;
+        _storageService = storageServiceCollection;
     }
 
     /// <summary>
@@ -108,21 +111,21 @@ public class UserService : IDatabaseModelService<User>
         }
     }
 
-    public OneOf<string, ErrorInfo> ChangePassword(string email, string oldPassword, string newPassword, string newPasswordRepeated)
+    public OneOf<string, ErrorInfo> ChangePassword(string email, string oldPassword, string newPassword, string newPasswordRepeated, bool isRestoring)
     {
         User? user = GetUser(email);
 
         if (user is null)
             return new ErrorInfo(Codes.NotFound, "Невозможно получить пользователя для смены пароля");
-        
+
         if (oldPassword == newPassword)
             return new ErrorInfo(Codes.NotFound, "Старый и новый пароли совпадают");
 
-        bool oldPasswordCorrect = PasswordUtility.VerifyPassword(oldPassword, user.Password);
+        bool oldPasswordCorrect = isRestoring || PasswordUtility.VerifyPassword(oldPassword, user.Password);
 
         if (!oldPasswordCorrect)
             return new ErrorInfo(Codes.NotFound, "Неверно введен старый пароль");
-        
+
         if (newPassword != newPasswordRepeated)
             return new ErrorInfo(Codes.NotFound, "Новый пароль неверно повторен");
 
@@ -310,8 +313,23 @@ public class UserService : IDatabaseModelService<User>
             User? dbUser = _db.Users.FirstOrDefault<User>(dbUser => dbUser.Id == user.Id);
             if (dbUser is null)
                 return new ErrorInfo(Codes.NotFound, "Пользователь не найден!");
-            _db.Users.Remove(dbUser);
-            _db.SaveChanges();
+            var entry = _db.Users.Remove(dbUser);
+
+            if (entry.State == EntityState.Deleted)
+            {
+                var dropboxService = _storageService.TryGetService(typeof(DropboxStorageService)) as DropboxStorageService;
+
+                if (dropboxService is null)
+                    return new ErrorInfo(Codes.NotFound, "Невозможно удалить папку пользователя на Dropbox");
+
+                var deleteRes = dropboxService.DeleteAsync(user.Email).Result;
+
+                if (deleteRes.IsT1)
+                    return deleteRes.AsT1;
+
+                _db.SaveChanges();
+                return entry.Entity;
+            }
             return dbUser;
         }
         catch (DbUpdateConcurrencyException ex)
@@ -326,5 +344,65 @@ public class UserService : IDatabaseModelService<User>
         {
             return new ErrorInfo(Codes.NotFound, $"System.Exception: {ex.Message}");
         }
+    }
+
+    public OneOf<Token, ErrorInfo> CreateToken(User user, TokenType tokenType)
+    {
+        try
+        {
+            Token? exitsingToken = _db.Token.FirstOrDefault(existingToken => existingToken.UserId == user.Id && existingToken.Type == tokenType);
+
+            if (exitsingToken is null || exitsingToken.ExpiresAt <= DateTime.Now)
+            {
+                Token token = new Token(user, tokenType);
+
+                if (exitsingToken is not null)
+                    _db.Token.Remove(exitsingToken);
+
+                var entry = _db.Token.Add(token);
+
+                if (entry.State == EntityState.Added)
+                {
+                    _db.SaveChanges();
+                    return token;
+                }
+                return new ErrorInfo(Codes.NotFound, "Невозможно сохранить токен в базе данных");
+            }
+
+            return exitsingToken;
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"DbUpdateConcurrencyException: {ex.InnerException?.Message}");
+        }
+        catch (DbUpdateException ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"DbUpdateException: {ex.InnerException?.Message}");
+        }
+        catch (Exception ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"System.Exception: {ex.Message}");
+        }
+    }
+
+    public OneOf<bool, ErrorInfo> ConfirmToken(User user, string data, TokenType tokenType)
+    {
+        Token? token = _db.Token.Where(token => token.UserId == user.Id && token.Type == tokenType).FirstOrDefault();
+
+        if (token is null)
+            return new ErrorInfo(Codes.NotFound, "Невозможно получить токен, без него невозможно совершить действие с аккаунтом");
+
+        if (token.Value != data)
+            return new ErrorInfo(Codes.NotFound, "Токены отличаются, операция невозможна");
+
+        if (token.ExpiresAt <= DateTime.Now)
+        {
+            _db.Token.Remove(token);
+            return new ErrorInfo(Codes.NotFound, "Токен истек, создайте новый в личном кабинете пользователя");
+        }
+
+
+        _db.Token.Remove(token);
+        return true;
     }
 }

@@ -51,6 +51,7 @@ builder.Services.AddScoped<OrderService>();
 builder.Services.AddScoped<YooKassaPaymentService>(provider => new YooKassaPaymentService(builder.Configuration, provider.GetRequiredService<OrderService>(), provider.GetRequiredService<SQLiteContext>()));
 builder.Services.AddSingleton<StorageServiceCollection>(new StorageServiceCollection());
 builder.Services.AddSingleton<MailService>(new MailService(builder.Configuration, builder.Services.First(descriptor => descriptor.ImplementationType == typeof(SQLiteContext)).ImplementationInstance as SQLiteContext));
+builder.Services.AddScoped<StatisticsService>();
 
 // builder.Services.AddSingleton<YooKassaPaymentService>(x => 
 //     new YooKassaPaymentService(builder.Configuration,

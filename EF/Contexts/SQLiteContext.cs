@@ -1,5 +1,6 @@
 using EF.Models;
 using Microsoft.EntityFrameworkCore;
+using Types.Classes;
 
 namespace EF.Contexts;
 public class SQLiteContext : DbContext
@@ -9,6 +10,8 @@ public class SQLiteContext : DbContext
     public DbSet<OrderPayment> OrderPayments { get; set; }
     public DbSet<OrderRating> OrderRating { get; set; }
     public DbSet<Token> Token { get; set; }
+    public DbSet<StatisticsData> StatisticsData { get; set; }
+    public DbSet<StatisticsReport> StatisticsReport { get; set; }
 
     public SQLiteContext(DbContextOptions<SQLiteContext> options) : base(options) { }
 

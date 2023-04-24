@@ -3,6 +3,7 @@ using System;
 using EF.Contexts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GostVentBackend.Migrations
 {
     [DbContext(typeof(SQLiteContext))]
-    partial class SQLiteContextModelSnapshot : ModelSnapshot
+    [Migration("20230424135400_addedStatisticsDataTable")]
+    partial class addedStatisticsDataTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "7.0.4");
@@ -50,7 +53,7 @@ namespace GostVentBackend.Migrations
 
                     b.HasIndex("ClientId");
 
-                    b.ToTable("Orders", (string)null);
+                    b.ToTable("Orders");
                 });
 
             modelBuilder.Entity("EF.Models.OrderPayment", b =>
@@ -69,7 +72,7 @@ namespace GostVentBackend.Migrations
 
                     b.HasIndex("OrderId");
 
-                    b.ToTable("OrderPayments", (string)null);
+                    b.ToTable("OrderPayments");
                 });
 
             modelBuilder.Entity("EF.Models.OrderRating", b =>
@@ -93,7 +96,7 @@ namespace GostVentBackend.Migrations
 
                     b.HasIndex("OrderId");
 
-                    b.ToTable("OrderRating", (string)null);
+                    b.ToTable("OrderRating");
                 });
 
             modelBuilder.Entity("EF.Models.StatisticsData", b =>
@@ -116,7 +119,7 @@ namespace GostVentBackend.Migrations
 
                     b.HasIndex("StatisticsReportId");
 
-                    b.ToTable("StatisticsData", (string)null);
+                    b.ToTable("StatisticsData");
                 });
 
             modelBuilder.Entity("EF.Models.Token", b =>
@@ -145,7 +148,7 @@ namespace GostVentBackend.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Token", (string)null);
+                    b.ToTable("Token");
                 });
 
             modelBuilder.Entity("EF.Models.User", b =>
@@ -177,7 +180,7 @@ namespace GostVentBackend.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("Users");
                 });
 
             modelBuilder.Entity("Types.Classes.StatisticsReport", b =>
@@ -198,7 +201,7 @@ namespace GostVentBackend.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("StatisticsReport", (string)null);
+                    b.ToTable("StatisticsReport");
                 });
 
             modelBuilder.Entity("EF.Models.Order", b =>

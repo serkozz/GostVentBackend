@@ -1,4 +1,5 @@
 using EF.Contexts;
+using EF.Models;
 using OneOf;
 using Types.Classes;
 using Types.Enums;
@@ -20,21 +21,35 @@ public class StatisticsService
         _paymentService = paymentService;
     }
 
-    public OneOf<StatisticsReport, ErrorInfo> MeanOrdersPricePerClient()
+    public OneOf<StatisticsReport, ErrorInfo> SaveStats(StatisticsReport report)
     {
         try
         {
-            float priceCumSum = 0;
-            int ordersCount = 0;
-            List<float> data = new List<float>();
-            foreach (var order in _db.Orders.Where(order => order.Status == OrderStatus.Finished && order.Price != 0))
+            if (report.Data.Count == 0)
+                return new ErrorInfo(Codes.NotFound, "Невозможно сохранить статистику без содержащихся в ней данных");
+
+            var existingRepOrNull = _db.StatisticsReport.FirstOrDefault(statRep => statRep.CreationDate == report.CreationDate && statRep.Name == report.Name);
+
+            if (existingRepOrNull is not null)
             {
-                priceCumSum += order.Price;
-                ordersCount++;
+                existingRepOrNull.CopyFrom(report);
+                _db.StatisticsReport.Update(existingRepOrNull);
+                int affectedRows = _db.SaveChanges();
+
+                if (affectedRows == 0)
+                    return new ErrorInfo(Codes.NotFound, "Невозможно обновить существующую статистику");
+
+                return existingRepOrNull;
             }
-            float meanPrice = priceCumSum / ordersCount;
-            data.Add(meanPrice);
-            return new StatisticsReport("Средняя сумма заказа", data);
+
+            var entry = _db.StatisticsReport.Add(report);
+
+            if (entry.State == Microsoft.EntityFrameworkCore.EntityState.Added)
+            {
+                int rowsAffected = _db.SaveChanges();
+                return entry.Entity;
+            }
+            return new ErrorInfo(Codes.NotFound, "Возникла непредвиденная ошибка при сохранении статистики в БД");
         }
         catch (System.Exception ex)
         {
@@ -42,13 +57,35 @@ public class StatisticsService
         }
     }
 
-    public OneOf<StatisticsReport, ErrorInfo> MeanOrdersPriceByOrderType()
+    public OneOf<StatisticsReport, ErrorInfo> MeanOrdersPricePerClient(DateOnly? reportCreationDate = null)
+    {
+        try
+        {
+            float priceCumSum = 0;
+            int ordersCount = 0;
+            List<StatisticsData> data = new List<StatisticsData>();
+            foreach (var order in _db.Orders.Where(order => order.Status == OrderStatus.Finished && order.Price != 0))
+            {
+                priceCumSum += order.Price;
+                ordersCount++;
+            }
+            float meanPrice = priceCumSum / ordersCount;
+            data.Add(new StatisticsData("Средняя сумма заказа", meanPrice));
+            return new StatisticsReport("Средняя сумма заказа", data, reportCreationDate);
+        }
+        catch (System.Exception ex)
+        {
+            return new ErrorInfo(Codes.NotFound, $"Возникла ошибка: {ex.Message}");
+        }
+    }
+
+    public OneOf<StatisticsReport, ErrorInfo> MeanOrdersPriceByOrderType(DateOnly? reportCreationDate = null)
     {
         try
         {
             Dictionary<ProductType, Tuple<float, int>> productType_ordersCumPrice_ordersCount__Dictionary = new Dictionary<ProductType, Tuple<float, int>>();
             var productTypes = Enum.GetValues(typeof(ProductType));
-            List<float> data = new List<float>();
+            List<StatisticsData> data = new List<StatisticsData>();
 
             foreach (var value in productTypes)
             {
@@ -66,16 +103,16 @@ public class StatisticsService
                 productType_ordersCumPrice_ordersCount__Dictionary[order.ProductType] = new Tuple<float, int>(cumPrice, orderCount);
             }
 
-            foreach (var ordersCumPrice_ordersCount in productType_ordersCumPrice_ordersCount__Dictionary.Values)
+            foreach (var kvp in productType_ordersCumPrice_ordersCount__Dictionary)
             {
-                if (ordersCumPrice_ordersCount.Item2 == 0)
+                if (kvp.Value.Item2 == 0)
                     continue;
 
-                float meanPrice = ordersCumPrice_ordersCount.Item1 / ordersCumPrice_ordersCount.Item2;
-                data.Add(meanPrice);
+                float meanPrice = kvp.Value.Item1 / kvp.Value.Item2;
+                data.Add(new StatisticsData($"{kvp.Key.ToString()}", meanPrice));
             }
 
-            return new StatisticsReport("Средняя сумма заказа по категориям (Spiro,Воздуховод,Глушитель,Дефлектор)", data);
+            return new StatisticsReport("Средняя сумма заказа по категориям (Spiro,Воздуховод,Глушитель,Дефлектор)", data, reportCreationDate);
         }
         catch (System.Exception ex)
         {
@@ -83,13 +120,13 @@ public class StatisticsService
         }
     }
 
-    public OneOf<StatisticsReport, ErrorInfo> MeanOrdersFinishTimeByOrderType()
+    public OneOf<StatisticsReport, ErrorInfo> MeanOrdersFinishTimeByOrderType(DateOnly? reportCreationDate = null)
     {
         try
         {
             Dictionary<ProductType, Tuple<float, int>> productType_LeadDays_ordersCount__Dictionary = new Dictionary<ProductType, Tuple<float, int>>();
             var productTypes = Enum.GetValues(typeof(ProductType));
-            List<float> data = new List<float>();
+            List<StatisticsData> data = new List<StatisticsData>();
 
             foreach (var value in productTypes)
             {
@@ -107,16 +144,16 @@ public class StatisticsService
                 productType_LeadDays_ordersCount__Dictionary[order.ProductType] = new Tuple<float, int>(leadDays, orderCount);
             }
 
-            foreach (var LeadDays_ordersCount in productType_LeadDays_ordersCount__Dictionary.Values)
+            foreach (var kvp in productType_LeadDays_ordersCount__Dictionary)
             {
-                if (LeadDays_ordersCount.Item2 == 0)
+                if (kvp.Value.Item2 == 0)
                     continue;
 
-                float meanDays = LeadDays_ordersCount.Item1 / LeadDays_ordersCount.Item2;
-                data.Add(meanDays);
+                float meanDays = kvp.Value.Item1 / kvp.Value.Item2;
+                data.Add(new StatisticsData($"{kvp.Key.ToString()}", meanDays));
             }
 
-            return new StatisticsReport("Среднее время выполнения заказа по категориям (Spiro,Воздуховод,Глушитель,Дефлектор)", data);
+            return new StatisticsReport("Среднее время выполнения заказа по категориям (Spiro,Воздуховод,Глушитель,Дефлектор)", data, reportCreationDate);
         }
         catch (System.Exception ex)
         {
@@ -124,13 +161,13 @@ public class StatisticsService
         }
     }
 
-    public OneOf<StatisticsReport, ErrorInfo> OrdersPercentByOrderType()
+    public OneOf<StatisticsReport, ErrorInfo> OrdersPercentByOrderType(DateOnly? reportCreationDate = null)
     {
         try
         {
             Dictionary<ProductType, int> productType_ordersCount__Dictionary = new Dictionary<ProductType, int>();
             var productTypes = Enum.GetValues(typeof(ProductType));
-            List<float> data = new List<float>();
+            List<StatisticsData> data = new List<StatisticsData>();
 
             foreach (var value in productTypes)
             {
@@ -145,13 +182,13 @@ public class StatisticsService
                 ordersCount++;
             }
 
-            foreach (var count in productType_ordersCount__Dictionary.Values)
+            foreach (var kvp in productType_ordersCount__Dictionary)
             {
-                float percent = (float)count / (float)ordersCount;
-                data.Add(percent);
+                float percent = (float)kvp.Value / (float)ordersCount;
+                data.Add(new StatisticsData($"{kvp.Key.ToString()}", percent));
             }
 
-            return new StatisticsReport("Процент заказов среди всех по категориям (Spiro,Воздуховод,Глушитель,Дефлектор)", data);
+            return new StatisticsReport("Процент заказов среди всех по категориям (Spiro,Воздуховод,Глушитель,Дефлектор)", data, reportCreationDate);
         }
         catch (System.Exception ex)
         {
@@ -159,13 +196,13 @@ public class StatisticsService
         }
     }
 
-    public OneOf<StatisticsReport, ErrorInfo> MeanOrderRatingByType()
+    public OneOf<StatisticsReport, ErrorInfo> MeanOrderRatingByType(DateOnly? reportCreationDate = null)
     {
         try
         {
             Dictionary<ProductType, Tuple<float, int>> productType_cumRating_ordersCount__Dictionary = new Dictionary<ProductType, Tuple<float, int>>();
             var productTypes = Enum.GetValues(typeof(ProductType));
-            List<float> data = new List<float>();
+            List<StatisticsData> data = new List<StatisticsData>();
 
             foreach (var value in productTypes)
             {
@@ -185,16 +222,16 @@ public class StatisticsService
                 productType_cumRating_ordersCount__Dictionary[orderRating.Order.ProductType] = new Tuple<float, int>(cumRating, orderCount);
             }
 
-            foreach (var cumRating_ordersCount in productType_cumRating_ordersCount__Dictionary.Values)
+            foreach (var kvp in productType_cumRating_ordersCount__Dictionary)
             {
-                if (cumRating_ordersCount.Item2 == 0)
+                if (kvp.Value.Item2 == 0)
                     continue;
 
-                float meanRating = cumRating_ordersCount.Item1 / cumRating_ordersCount.Item2;
-                data.Add(meanRating);
+                float meanRating = kvp.Value.Item1 / kvp.Value.Item2;
+                data.Add(new StatisticsData($"{kvp.Key.ToString()}", meanRating));
             }
 
-            return new StatisticsReport("Средняя оценка заказа по категориям (Spiro,Воздуховод,Глушитель,Дефлектор)", data);
+            return new StatisticsReport("Средняя оценка заказа по категориям (Spiro,Воздуховод,Глушитель,Дефлектор)", data, reportCreationDate);
         }
         catch (System.Exception ex)
         {
@@ -202,18 +239,36 @@ public class StatisticsService
         }
     }
 
-    public OneOf<StatisticsReport, ErrorInfo> MaxOrderPrice()
+    public OneOf<StatisticsReport, ErrorInfo> MaxOrderPrice(DateOnly? reportCreationDate = null)
     {
         try
         {
-            List<float> data = new List<float>();
+            List<StatisticsData> data = new List<StatisticsData>();
             var maxPrice = _db.Orders.Max(order => order.Price);
-            data.Add(maxPrice);
-            return new StatisticsReport("Максимальная цена заказа", data);
+            data.Add(new StatisticsData("Максимальная цена заказа", maxPrice));
+            return new StatisticsReport("Максимальная цена заказа", data, reportCreationDate);
         }
         catch (System.Exception ex)
         {
             return new ErrorInfo(Codes.NotFound, $"Возникла ошибка: {ex.Message}");
         }
+    }
+
+    public OneOf<List<StatisticsReport>, ErrorInfo> GetStatistics(DateOnly? date = null)
+    {
+        if (date is null)
+            date = DateOnly.FromDateTime(DateTime.Now);
+
+        var statisticsReports = _db.StatisticsReport.Where(rep => rep.CreationDate == date).ToList();
+
+        if (statisticsReports.Count == 0)
+            return new ErrorInfo(Codes.NotFound, $"Статистика за указанный день {date.ToString()} отсутствует");
+
+        foreach (var report in statisticsReports)
+        {
+            _db.Entry(report).Collection(rep => rep.Data).Load();
+        }
+
+        return statisticsReports;
     }
 }
